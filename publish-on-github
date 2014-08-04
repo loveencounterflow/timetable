@@ -5,6 +5,7 @@ cd $DIR
 
 
 ./node_modules/coffee-script/bin/coffee -o lib -c src && \
+./node_modules/coffee-script/bin/coffee -o . -c options.coffee && \
 doctoc README.md && \
 # coffeedoc -o doc src && \
 git add --all && \

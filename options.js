@@ -5,13 +5,17 @@
   njs_path = require('path');
 
   module.exports = options = {
-    'data-home': njs_path.join(__dirname, 'data'),
     'parser': {
       'delimiter': ',',
       'skip_empty_lines': true
     },
-    'transformer': {
+    'stream-transform': {
       'parallel': 1
+    },
+    'data': {
+      'types': require('./lib/gtfs-types'),
+      'info': require('timetable-data'),
+      'home': (require('path')).dirname(require.resolve('timetable-data'))
     }
   };
 

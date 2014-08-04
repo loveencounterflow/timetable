@@ -31,6 +31,7 @@ new_parser                = require 'csv-parse'
 T                         = require './TRANSFORMERS'
 as_transformer            = T.as_transformer.bind T
 options                   = require '../options'
+datasource_infos          = require './datasource-infos'
 
 
 
@@ -258,9 +259,8 @@ options                   = require '../options'
 ############################################################################################################
 # MAKE IT SO
 #-----------------------------------------------------------------------------------------------------------
-@read_agencies = ( registry, handler ) ->
+@read_agencies = ( route, registry, handler ) ->
   parser      = new_parser options[ 'parser' ]
-  route       = '/Volumes/Storage/cnd/node_modules/timetable/data/germany-berlin-2014/agency.txt'
   input       = njs_fs.createReadStream route
   #.........................................................................................................
   input.on 'end', ->
@@ -283,10 +283,9 @@ options                   = require '../options'
   return null
 
 #-----------------------------------------------------------------------------------------------------------
-@read_stoptimes = ( registry, handler ) ->
+@read_stoptimes = ( route, registry, handler ) ->
   parser      = new_parser options[ 'parser' ]
   ### TAINT must concatenate files or read both parts ###
-  route       = '/Volumes/Storage/cnd/node_modules/timetable/data/germany-berlin-2014/stop_times.001.txt'
   input       = njs_fs.createReadStream route
   #.........................................................................................................
   input.on 'end', ->
@@ -311,10 +310,9 @@ options                   = require '../options'
   return null
 
 #-----------------------------------------------------------------------------------------------------------
-@read_routes = ( registry, handler ) ->
+### TAINT name clash (filesystem route vs. GTFS route) ###
+@read_routes = ( route, registry, handler ) ->
   parser        = new_parser options[ 'parser' ]
-  ### TAINT name clash (filesystem route vs. GTFS route) ###
-  route         = '/Volumes/Storage/cnd/node_modules/timetable/data/germany-berlin-2014/routes.txt'
   input         = njs_fs.createReadStream route
   #.........................................................................................................
   input.on 'end', ->
@@ -338,9 +336,8 @@ options                   = require '../options'
   return null
 
 #-----------------------------------------------------------------------------------------------------------
-@read_stations = ( registry, handler ) ->
+@read_stations = ( route, registry, handler ) ->
   parser          = new_parser options[ 'parser' ]
-  route           = '/Volumes/Storage/cnd/node_modules/timetable/data/germany-berlin-2014/stops.txt'
   input           = njs_fs.createReadStream route
   #.........................................................................................................
   input.on 'end', ->
@@ -366,9 +363,8 @@ options                   = require '../options'
   return null
 
 #-----------------------------------------------------------------------------------------------------------
-@read_trips = ( registry, handler ) ->
+@read_trips = ( route, registry, handler ) ->
   parser          = new_parser options[ 'parser' ]
-  route           = '/Volumes/Storage/cnd/node_modules/timetable/data/germany-berlin-2014/trips.txt'
   input           = njs_fs.createReadStream route
   #.........................................................................................................
   input.on 'end', ->
@@ -397,8 +393,44 @@ options                   = require '../options'
 
 #-----------------------------------------------------------------------------------------------------------
 @read = ( handler ) ->
-  registry    = {}
-  # @read_agencies   registry
+  registry = {}
+  #.........................................................................................................
+  for source_name, route_by_types of datasource_infos
+    tasks     = []
+    no_source = []
+    no_method = []
+    for gtfs_type in options[ 'data' ][ 'types' ]
+      route = route_by_types[ gtfs_type ]
+      unless route?
+        no_source.push "skipping #{source_name}/#{gtfs_type} (no source file)"
+        continue
+      help "found data source for #{source_name}/#{gtfs_type}"
+      # whisper route
+      #.....................................................................................................
+      switch gtfs_type
+        when 'agency'         then method = @read_agencies
+        when 'calendar_dates' then method = @read_calendar_dates
+        when 'calendar'       then method = @read_calendar
+        when 'routes'         then method = @read_routes
+        when 'stop_times'     then method = @read_stop_times
+        when 'stops'          then method = @read_stops
+        when 'transfers'      then method = @read_transfers
+        when 'trips'          then method = @read_trips
+      unless method?
+        no_method.push "no method to read GTFS data of type #{rpr gtfs_type}; skipping"
+        continue
+      method = method.bind @
+      #.....................................................................................................
+      do ( method, route ) =>
+        tasks.push ( async_handler ) => method route, registry, async_handler
+  #.........................................................................................................
+  for messages in [ no_source, no_method, ]
+    for message in messages
+      warn message
+  process.exit()
+
+
+
   tasks       = [
     ( async_handler ) => @read_agencies   registry, async_handler
     ( async_handler ) => @read_stoptimes  registry, async_handler
@@ -414,6 +446,8 @@ options                   = require '../options'
       debug "#{count} entries in registry[ 'old' ]"
     else
       debug "no entries in registry[ 'old' ]"
+
+
   #   # info registry[ 'new' ]
   #   # info ( Object.keys registry[ 'new' ] ).length if registry[ 'new' ]?
   #   # if ( stations_by_names = registry[ '%stations-by-names' ] )?
@@ -428,9 +462,11 @@ options                   = require '../options'
 
 ############################################################################################################
 unless module.parent?
-  # @read()
+  @read()
 
-  info require 'timetable-data'
+
+
+
 
 
 

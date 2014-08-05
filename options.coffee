@@ -16,7 +16,7 @@ try
 catch error
   warn "unable to `require 'timetable-data'`"
   help "please install data package with `npm install 'timetable-data'`"
-  help "see #{( require 'package.json')[ 'homepage' ]} for details"
+  help "see #{( require './package.json')[ 'homepage' ]} for details"
 
 warn data_home
 

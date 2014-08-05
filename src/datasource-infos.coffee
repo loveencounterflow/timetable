@@ -36,7 +36,15 @@ get_datasource_infos = ( home = datasources_home ) ->
   info "collecting data sources from"
   info rpr matcher
   #.........................................................................................................
-  for route in glob.sync matcher#, { debug: true }
+  routes = glob.sync matcher
+  if routes.length is 0
+    warn "unable to find any datasource files in this location"
+    help "please install data package with `npm install 'timetable-data'`"
+    help "see #{( require './package.json')[ 'homepage' ]} for details"
+    warn "aborting"
+    process.exit()
+  #.........................................................................................................
+  for route in routes
     filename = njs_path.basename route, njs_path.extname route
     continue unless filename in options[ 'data' ][ 'types' ]
     #.......................................................................................................

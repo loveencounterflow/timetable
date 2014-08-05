@@ -1,6 +1,6 @@
 {
   "name": "timetable",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "description": "Using GTFS and other sources to produce beautiful and usable timetables for public transport.",
   "main": "lib/main.js",
   "scripts": {

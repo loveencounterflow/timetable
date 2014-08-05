@@ -40,7 +40,7 @@ get_datasource_infos = ( home = datasources_home ) ->
   if routes.length is 0
     warn "unable to find any datasource files in this location"
     help "please install data package with `npm install 'timetable-data'`"
-    help "see #{( require './package.json')[ 'homepage' ]} for details"
+    help "see #{( require '../package.json')[ 'homepage' ]} for details"
     warn "aborting"
     process.exit()
   #.........................................................................................................

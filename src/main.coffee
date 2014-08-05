@@ -32,6 +32,7 @@ T                         = require './TRANSFORMERS'
 as_transformer            = T.as_transformer.bind T
 options                   = require '../options'
 datasource_infos          = require './datasource-infos'
+create_readstream         = require './create-readstream'
 
 
 
@@ -261,7 +262,7 @@ datasource_infos          = require './datasource-infos'
 #-----------------------------------------------------------------------------------------------------------
 @read_agencies = ( route, registry, handler ) ->
   parser      = new_parser options[ 'parser' ]
-  input       = @_create_readstream route
+  input       = create_readstream route
   #.........................................................................................................
   input.on 'end', ->
     info 'ok: agencies'
@@ -285,7 +286,7 @@ datasource_infos          = require './datasource-infos'
 #-----------------------------------------------------------------------------------------------------------
 @read_stop_times = ( route, registry, handler ) ->
   parser      = new_parser options[ 'parser' ]
-  input       = @_create_readstream route
+  input       = create_readstream route
   #.........................................................................................................
   input.on 'end', ->
     info 'ok: stoptimes'
@@ -312,7 +313,7 @@ datasource_infos          = require './datasource-infos'
 ### TAINT name clash (filesystem route vs. GTFS route) ###
 @read_routes = ( route, registry, handler ) ->
   parser      = new_parser options[ 'parser' ]
-  input       = @_create_readstream route
+  input       = create_readstream route
   #.........................................................................................................
   input.on 'end', ->
     info 'ok: routes'
@@ -337,7 +338,7 @@ datasource_infos          = require './datasource-infos'
 #-----------------------------------------------------------------------------------------------------------
 @read_stations = ( route, registry, handler ) ->
   parser      = new_parser options[ 'parser' ]
-  input       = @_create_readstream route
+  input       = create_readstream route
   #.........................................................................................................
   input.on 'end', ->
     info 'ok: stations'
@@ -363,8 +364,8 @@ datasource_infos          = require './datasource-infos'
 
 #-----------------------------------------------------------------------------------------------------------
 @read_trips = ( route, registry, handler ) ->
-  parser          = new_parser options[ 'parser' ]
-  input           = njs_fs.createReadStream route
+  parser      = new_parser options[ 'parser' ]
+  input       = create_readstream route
   #.........................................................................................................
   input.on 'end', ->
     info 'ok: trips'
@@ -447,18 +448,6 @@ datasource_infos          = require './datasource-infos'
 ############################################################################################################
 # HELPERS
 #===========================================================================================================
-@_create_readstream = ( route ) ->
-  switch type = TYPES.type_of route
-    when 'text'
-      return njs_fs.createReadStream route
-    when 'list'
-      CombinedStream  = require 'combined-stream'
-      R               = CombinedStream.create()
-      for route in ( routes = route )
-        R.append njs_fs.createReadStream route
-      return R
-  throw new Error "uanble to create readstream for argument of type #{rpr type}"
-
 
 ############################################################################################################
 unless module.parent?

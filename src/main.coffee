@@ -423,10 +423,11 @@ datasource_infos          = require './datasource-infos'
       #.....................................................................................................
       do ( method, route ) =>
         tasks.push ( async_handler ) => method route, registry, async_handler
-  #.........................................................................................................
-  for messages in [ no_source, no_method, ]
-    for message in messages
-      warn message
+    #.........................................................................................................
+    whisper [ no_source, no_method, ]
+    for messages in [ no_source, no_method, ]
+      for message in messages
+        warn message
   process.exit()
 
 

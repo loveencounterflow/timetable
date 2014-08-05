@@ -31,6 +31,7 @@ glob                      = require 'glob'
 get_datasource_infos = ( home = datasources_home ) ->
   R       = {}
   matcher = njs_path.join home, '**/*.txt'
+  matcher = njs_path.join home, '**/*.txt-[a-z]{4}'
   #.........................................................................................................
   info "collecting data sources from"
   info rpr matcher
@@ -41,6 +42,7 @@ get_datasource_infos = ( home = datasources_home ) ->
     #.......................................................................................................
     collection_name   = njs_path.basename njs_path.dirname route
     collection        = R[ collection_name    ]?= {}
+    whisper route
     #.......................................................................................................
     collection[ filename  ] = route
   #.........................................................................................................

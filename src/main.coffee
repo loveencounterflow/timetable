@@ -451,7 +451,12 @@ datasource_infos          = require './datasource-infos'
   switch type = TYPES.type_of route
     when 'text'
       return njs_fs.createReadStream route
-    # when 'list'
+    when 'list'
+      CombinedStream  = require 'combined-stream'
+      R               = CombinedStream.create()
+      for route in ( routes = route )
+        R.append njs_fs.createReadStream route
+      return R
   throw new Error "uanble to create readstream for argument of type #{rpr type}"
 
 

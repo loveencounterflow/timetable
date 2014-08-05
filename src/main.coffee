@@ -23,17 +23,17 @@ urge                      = TRM.get_logger 'urge',      badge
 echo                      = TRM.echo.bind TRM
 rainbow                   = TRM.rainbow.bind TRM
 #...........................................................................................................
-ASYNC                     = require 'async'
-#...........................................................................................................
-### https://github.com/wdavidw/node-csv-parse ###
-new_parser                = require 'csv-parse'
-#...........................................................................................................
 T                         = require './TRANSFORMERS'
 as_transformer            = T.as_transformer.bind T
 options                   = require '../options'
 datasource_infos          = require './datasource-infos'
 create_readstream         = require './create-readstream'
-
+#...........................................................................................................
+ASYNC                     = require 'async'
+#...........................................................................................................
+### https://github.com/wdavidw/node-csv-parse ###
+_new_parser               = require 'csv-parse'
+new_parser                = -> _new_parser options[ 'parser' ]
 
 
 ############################################################################################################
@@ -237,7 +237,7 @@ create_readstream         = require './create-readstream'
     return record
 
 #-----------------------------------------------------------------------------------------------------------
-@$add_trip_headsign_system_name = ->
+@$add_headsign_system_name = ->
   return as_transformer ( record ) =>
     record[ '~headsign' ] = @_get_system_name record[ 'headsign' ]
     return record
@@ -261,7 +261,7 @@ create_readstream         = require './create-readstream'
 # MAKE IT SO
 #-----------------------------------------------------------------------------------------------------------
 @read_agencies = ( route, registry, handler ) ->
-  parser      = new_parser options[ 'parser' ]
+  parser      = new_parser()
   input       = create_readstream route
   #.........................................................................................................
   input.on 'end', ->
@@ -269,23 +269,26 @@ create_readstream         = require './create-readstream'
     return handler null
   #.........................................................................................................
   input.pipe parser
+    .pipe T.$skip                       3
     .pipe T.$as_pods()
     .pipe @$clean_agency_record()
     .pipe @$fix_ids()
-    .pipe T.$delete_prefix 'agency_'
-    .pipe T.$add_n4j_system_properties 'node', 'agency'
-    .pipe T.$rename 'id', '%gtfs-id'
+    .pipe T.$delete_prefix              'agency_'
+    .pipe T.$add_n4j_system_properties  'node', 'agency'
+    .pipe T.$rename                     'id', '%gtfs-id'
     .pipe @$add_agency_id()
     .pipe T.$dasherize_field_names()
-    .pipe T.$register registry
-    # .pipe T.show_and_quit
+    .pipe T.$register                   registry
+    # .pipe T.$show()
+    .pipe T.$show_sample input
+    # .pipe T.$show_and_quit()
   #.........................................................................................................
   whisper 'reading GTFS agencies...'
   return null
 
 #-----------------------------------------------------------------------------------------------------------
 @read_stop_times = ( route, registry, handler ) ->
-  parser      = new_parser options[ 'parser' ]
+  parser      = new_parser()
   input       = create_readstream route
   #.........................................................................................................
   input.on 'end', ->
@@ -293,18 +296,20 @@ create_readstream         = require './create-readstream'
     return handler null
   #.........................................................................................................
   input.pipe parser
+    .pipe T.$skip                       3
     .pipe T.$as_pods()
     .pipe @$clean_stoptime_record()
     .pipe @$fix_ids()
-    .pipe T.$delete_prefix 'trip_'
-    .pipe T.$add_n4j_system_properties 'node', 'stoptime'
+    .pipe T.$delete_prefix              'trip_'
+    .pipe T.$add_n4j_system_properties  'node', 'stoptime'
     .pipe T.$dasherize_field_names()
-    .pipe T.$rename 'id',       '%gtfs-trip-id'
-    .pipe T.$rename 'stop-id',  '%gtfs-stop-id'
+    .pipe T.$rename                     'id',       '%gtfs-trip-id'
+    .pipe T.$rename                     'stop-id',  '%gtfs-stop-id'
     .pipe @$add_stoptime_idx()
     .pipe @$add_stoptime_id()
-    .pipe T.$register registry
-    # .pipe T.show_and_quit
+    .pipe T.$register                   registry
+    .pipe T.$show_sample                input
+    # .pipe T.$show_and_quit()
   #.........................................................................................................
   whisper 'reading GTFS stoptimes...'
   return null
@@ -312,7 +317,7 @@ create_readstream         = require './create-readstream'
 #-----------------------------------------------------------------------------------------------------------
 ### TAINT name clash (filesystem route vs. GTFS route) ###
 @read_routes = ( route, registry, handler ) ->
-  parser      = new_parser options[ 'parser' ]
+  parser      = new_parser()
   input       = create_readstream route
   #.........................................................................................................
   input.on 'end', ->
@@ -320,24 +325,26 @@ create_readstream         = require './create-readstream'
     return handler null
   #.........................................................................................................
   input.pipe parser
+    .pipe T.$skip                       3
     .pipe T.$as_pods()
     .pipe @$clean_route_record()
     .pipe @$fix_ids()
     .pipe T.$dasherize_field_names()
-    .pipe T.$rename 'route-id',         '%gtfs-id'
-    .pipe T.$rename 'agency-id',        '%gtfs-agency-id'
-    .pipe T.$rename 'route-short-name', 'name'
-    .pipe T.$add_n4j_system_properties 'node', 'route'
-    .pipe @$add_route_id registry
-    .pipe T.$register registry
-    # .pipe T.show_and_quit
+    .pipe T.$rename                     'route-id',         '%gtfs-id'
+    .pipe T.$rename                     'agency-id',        '%gtfs-agency-id'
+    .pipe T.$rename                     'route-short-name', 'name'
+    .pipe T.$add_n4j_system_properties  'node', 'route'
+    .pipe @$add_route_id                registry
+    .pipe T.$register                   registry
+    .pipe T.$show_sample input
+    # .pipe T.$show_and_quit()
   #.........................................................................................................
   whisper 'reading GTFS routes...'
   return null
 
 #-----------------------------------------------------------------------------------------------------------
 @read_stations = ( route, registry, handler ) ->
-  parser      = new_parser options[ 'parser' ]
+  parser      = new_parser()
   input       = create_readstream route
   #.........................................................................................................
   input.on 'end', ->
@@ -345,26 +352,28 @@ create_readstream         = require './create-readstream'
     return handler null
   #.........................................................................................................
   input.pipe parser
+    .pipe T.$skip                       3
     .pipe T.$as_pods()
     .pipe @$clean_station_record()
     .pipe @$fix_ids()
-    .pipe T.$delete_prefix 'stop_'
-    .pipe T.$copy 'name', '%gtfs-name'
+    .pipe T.$delete_prefix              'stop_'
+    .pipe T.$copy                       'name', '%gtfs-name'
     .pipe @$normalize_station_name()
     .pipe @$add_station_system_name()
-    .pipe T.$rename 'id', '%gtfs-id'
-    .pipe T.$add_n4j_system_properties 'node', 'station'
+    .pipe T.$rename                     'id', '%gtfs-id'
+    .pipe T.$add_n4j_system_properties  'node', 'station'
     .pipe @$convert_latlon()
-    .pipe @$add_station_id registry
-    .pipe T.$register registry
-    # .pipe T.show_and_quit
+    .pipe @$add_station_id              registry
+    .pipe T.$register                   registry
+    .pipe T.$show_sample input
+    # .pipe T.$show_and_quit()
   #.........................................................................................................
   whisper 'reading GTFS stations...'
   return null
 
 #-----------------------------------------------------------------------------------------------------------
 @read_trips = ( route, registry, handler ) ->
-  parser      = new_parser options[ 'parser' ]
+  parser      = new_parser()
   input       = create_readstream route
   #.........................................................................................................
   input.on 'end', ->
@@ -372,21 +381,23 @@ create_readstream         = require './create-readstream'
     return handler null
   #.........................................................................................................
   input.pipe parser
+    .pipe T.$skip                       3
     .pipe T.$as_pods()
     .pipe @$clean_trip_record()
     .pipe @$fix_ids()
-    .pipe T.$delete_prefix 'trip_'
+    .pipe T.$delete_prefix              'trip_'
     .pipe T.$dasherize_field_names()
-    .pipe T.$rename 'id',         '%gtfs-id'
-    .pipe T.$rename 'route-id',   '%gtfs-route-id'
-    .pipe T.$rename 'service-id', '%gtfs-service-id'
-    .pipe T.$copy   'headsign',   '%gtfs-headsign'
+    .pipe T.$rename                     'id',         '%gtfs-id'
+    .pipe T.$rename                     'route-id',   '%gtfs-route-id'
+    .pipe T.$rename                     'service-id', '%gtfs-service-id'
+    .pipe T.$copy                       'headsign',   '%gtfs-headsign'
     .pipe @$normalize_headsign()
-    .pipe @$add_trip_headsign_system_name()
-    .pipe T.$add_n4j_system_properties 'node', 'trip'
-    .pipe @$add_trip_id registry
-    .pipe T.$register registry
-    # .pipe T.show_and_quit
+    .pipe @$add_headsign_system_name()
+    .pipe T.$add_n4j_system_properties  'node', 'trip'
+    .pipe @$add_trip_id                 registry
+    .pipe T.$register                   registry
+    .pipe T.$show_sample input
+    # .pipe T.$show_and_quit()
   #.........................................................................................................
   whisper 'reading GTFS trips...'
   return null
@@ -402,6 +413,8 @@ create_readstream         = require './create-readstream'
     tasks     = []
     no_source = []
     no_method = []
+    ok_types  = []
+    #.......................................................................................................
     for gtfs_type in options[ 'data' ][ 'types' ]
       route = route_by_types[ gtfs_type ]
       unless route?
@@ -409,12 +422,13 @@ create_readstream         = require './create-readstream'
         continue
       help "found data source for #{source_name}/#{gtfs_type}"
       #.....................................................................................................
+      method = null
       switch gtfs_type
         when 'agency'         then method = @read_agencies
         when 'calendar_dates' then method = @read_calendar_dates
         when 'calendar'       then method = @read_calendar
         when 'routes'         then method = @read_routes
-        when 'stop_times'     then method = @read_stop_times
+        # when 'stop_times'     then method = @read_stop_times
         when 'stops'          then method = @read_stops
         when 'transfers'      then method = @read_transfers
         when 'trips'          then method = @read_trips
@@ -422,6 +436,7 @@ create_readstream         = require './create-readstream'
         no_method.push "no method to read GTFS data of type #{rpr gtfs_type}; skipping"
         continue
       method = method.bind @
+      ok_types.push gtfs_type
       #.....................................................................................................
       do ( method, route ) =>
         tasks.push ( async_handler ) => method route, registry, async_handler
@@ -429,16 +444,15 @@ create_readstream         = require './create-readstream'
     for messages in [ no_source, no_method, ]
       for message in messages
         warn message
+    #.......................................................................................................
+    info "reading data for #{ok_types.length} type(s)"
+    info "  (#{ok_types.join ', '})"
   #.........................................................................................................
   ASYNC.series tasks, ( error ) =>
     throw error if error?
-    ro = registry[ 'old' ]
-    if ro?
-      count = ( Object.keys ro ).length
-      debug "#{count} entries in registry[ 'old' ]"
-    else
-      debug "no entries in registry[ 'old' ]"
-    process.exit()
+    debug "#{if registry[ 'old' ]? then ( Object.keys registry[ 'old' ] ).length else 0} entries in registry[ 'old' ]"
+    debug "#{if registry[ 'new' ]? then ( Object.keys registry[ 'new' ] ).length else 0} entries in registry[ 'new' ]"
+    setImmediate -> process.exit()
   #.........................................................................................................
   return null
 

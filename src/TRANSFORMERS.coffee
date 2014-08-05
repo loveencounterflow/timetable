@@ -146,25 +146,33 @@ options                   = require '../options'
     return record
 
 #-----------------------------------------------------------------------------------------------------------
-@show_and_quit = @as_transformer ( record ) ->
-  throw error if error?
-  info rpr record
-  warn 'aborting from `TRANSFORMERS.show_and_quit`'
-  process.exit()
+@$show_sample = ( input_stream ) ->
+  ### TAINT may introduce a memory leak. ###
+  records = []
+  input_stream.once 'end', =>
+    info rpr records[ Math.floor Math.random() * records.length ]
+  return @as_transformer ( record ) =>
+    records.push record
+    return record
 
-# #-----------------------------------------------------------------------------------------------------------
-# @as_json = @as_transformer ( record, handler ) ->
-#   handler null, JSON.stringify record
+#-----------------------------------------------------------------------------------------------------------
+@$skip = ( limit = 1 ) ->
+  count = 0
+  return @as_transformer ( record, handler ) =>
+    count += 1
+    return handler null, null if count > limit
+    handler null, record #, { foo: 42, id: record[ 'id' ] + 'XXX' }
 
-# #-----------------------------------------------------------------------------------------------------------
-# @add_newlines = @as_transformer ( record, handler ) ->
-#   handler null, record + '\n'
+#-----------------------------------------------------------------------------------------------------------
+@$show = ->
+  return @as_transformer ( record, handler ) =>
+    info rpr record
+    handler null, record
 
-# #-----------------------------------------------------------------------------------------------------------
-# @colorize = @as_transformer ( record, handler ) ->
-#   handler null, rainbow record
-
-# #-----------------------------------------------------------------------------------------------------------
-# @desaturate = @as_transformer ( record, handler ) ->
-#   handler null, TRM.grey record
+#-----------------------------------------------------------------------------------------------------------
+@$show_and_quit = ->
+  return @as_transformer ( record ) =>
+    info rpr record
+    warn 'aborting from `TRANSFORMERS.show_and_quit`'
+    setImmediate -> process.exit()
 

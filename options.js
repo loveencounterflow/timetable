@@ -34,7 +34,7 @@
       'skip_empty_lines': true
     },
     'stream-transform': {
-      'parallel': 1
+      'parallel': 10
     },
     'data': {
       'types': require('./lib/gtfs-types'),

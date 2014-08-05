@@ -6,6 +6,7 @@ TRM                       = require 'coffeenode-trm'
 rpr                       = TRM.rpr.bind TRM
 badge                     = 'timetable/options'
 warn                      = TRM.get_logger 'warn',      badge
+help                      = TRM.get_logger 'help',      badge
 
 
 #-----------------------------------------------------------------------------------------------------------

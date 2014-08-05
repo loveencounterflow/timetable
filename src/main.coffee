@@ -7,7 +7,7 @@ njs_fs                    = require 'fs'
 # njs_crypto                  = require 'crypto'
 #...........................................................................................................
 # BAP                       = require 'coffeenode-bitsnpieces'
-# TYPES                     = require 'coffeenode-types'
+TYPES                     = require 'coffeenode-types'
 TEXT                      = require 'coffeenode-text'
 TRM                       = require 'coffeenode-trm'
 rpr                       = TRM.rpr.bind TRM
@@ -261,7 +261,7 @@ datasource_infos          = require './datasource-infos'
 #-----------------------------------------------------------------------------------------------------------
 @read_agencies = ( route, registry, handler ) ->
   parser      = new_parser options[ 'parser' ]
-  input       = njs_fs.createReadStream route
+  input       = @_create_readstream route
   #.........................................................................................................
   input.on 'end', ->
     info 'ok: agencies'
@@ -283,10 +283,9 @@ datasource_infos          = require './datasource-infos'
   return null
 
 #-----------------------------------------------------------------------------------------------------------
-@read_stoptimes = ( route, registry, handler ) ->
+@read_stop_times = ( route, registry, handler ) ->
   parser      = new_parser options[ 'parser' ]
-  ### TAINT must concatenate files or read both parts ###
-  input       = njs_fs.createReadStream route
+  input       = @_create_readstream route
   #.........................................................................................................
   input.on 'end', ->
     info 'ok: stoptimes'
@@ -312,8 +311,8 @@ datasource_infos          = require './datasource-infos'
 #-----------------------------------------------------------------------------------------------------------
 ### TAINT name clash (filesystem route vs. GTFS route) ###
 @read_routes = ( route, registry, handler ) ->
-  parser        = new_parser options[ 'parser' ]
-  input         = njs_fs.createReadStream route
+  parser      = new_parser options[ 'parser' ]
+  input       = @_create_readstream route
   #.........................................................................................................
   input.on 'end', ->
     info 'ok: routes'
@@ -337,8 +336,8 @@ datasource_infos          = require './datasource-infos'
 
 #-----------------------------------------------------------------------------------------------------------
 @read_stations = ( route, registry, handler ) ->
-  parser          = new_parser options[ 'parser' ]
-  input           = njs_fs.createReadStream route
+  parser      = new_parser options[ 'parser' ]
+  input       = @_create_readstream route
   #.........................................................................................................
   input.on 'end', ->
     info 'ok: stations'
@@ -391,6 +390,9 @@ datasource_infos          = require './datasource-infos'
   whisper 'reading GTFS trips...'
   return null
 
+
+#===========================================================================================================
+# READ METHOD
 #-----------------------------------------------------------------------------------------------------------
 @read = ( handler ) ->
   registry = {}
@@ -405,7 +407,6 @@ datasource_infos          = require './datasource-infos'
         no_source.push "skipping #{source_name}/#{gtfs_type} (no source file)"
         continue
       help "found data source for #{source_name}/#{gtfs_type}"
-      # whisper route
       #.....................................................................................................
       switch gtfs_type
         when 'agency'         then method = @read_agencies
@@ -423,21 +424,11 @@ datasource_infos          = require './datasource-infos'
       #.....................................................................................................
       do ( method, route ) =>
         tasks.push ( async_handler ) => method route, registry, async_handler
-    #.........................................................................................................
+    #.......................................................................................................
     for messages in [ no_source, no_method, ]
       for message in messages
         warn message
-  process.exit()
-
-
-
-  tasks       = [
-    ( async_handler ) => @read_agencies   registry, async_handler
-    ( async_handler ) => @read_stoptimes  registry, async_handler
-    ( async_handler ) => @read_routes     registry, async_handler
-    ( async_handler ) => @read_stations   registry, async_handler
-    ( async_handler ) => @read_trips      registry, async_handler
-    ]
+  #.........................................................................................................
   ASYNC.series tasks, ( error ) =>
     throw error if error?
     ro = registry[ 'old' ]
@@ -446,18 +437,22 @@ datasource_infos          = require './datasource-infos'
       debug "#{count} entries in registry[ 'old' ]"
     else
       debug "no entries in registry[ 'old' ]"
+    process.exit()
+  #.........................................................................................................
+  return null
 
 
-  #   # info registry[ 'new' ]
-  #   # info ( Object.keys registry[ 'new' ] ).length if registry[ 'new' ]?
-  #   # if ( stations_by_names = registry[ '%stations-by-names' ] )?
-  #   #   # info ( Object.keys stations_by_names ).join ' '
-  #   #   for stop_name, stops of stations_by_names
-  #   #     # continue if stops.length < 2
-  #   #     # continue unless /^alt-ma/.test stop_name
-  #   #     continue unless /alt-mariendorf/.test stop_name
-  #   #     log rainbow stops
-  #   # info registry
+
+
+############################################################################################################
+# HELPERS
+#===========================================================================================================
+@_create_readstream = ( route ) ->
+  switch type = TYPES.type_of route
+    when 'text'
+      return njs_fs.createReadStream route
+    # when 'list'
+  throw new Error "uanble to create readstream for argument of type #{rpr type}"
 
 
 ############################################################################################################

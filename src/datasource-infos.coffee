@@ -48,7 +48,6 @@ get_datasource_infos = ( home = datasources_home ) ->
     collection[ filename  ] = route
   #.........................................................................................................
   matcher = njs_path.join home, '**/*.txt.-[a-z][a-z][a-z][a-z]'
-  R[ 'germany-berlin-2014' ][ 'stop_times' ] = 'path/to/stop_times'
   #.........................................................................................................
   for route in glob.sync matcher
     virtual_route = route.replace /\.-[a-z][a-z][a-z][a-z]$/, ''
@@ -69,8 +68,8 @@ get_datasource_infos = ( home = datasources_home ) ->
       help "to delete the unsplitted file."
       warn "aborting"
       process.exit()
-      warn home
-  process.exit()
+    #.......................................................................................................
+    target.push route
   #.........................................................................................................
   if count is 0
     warn "unable to find any datasource files in this location"

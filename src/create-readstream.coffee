@@ -30,7 +30,7 @@ after                     = ( time_s, f ) -> setTimeout f, time_s * 1000
 
 
 #-----------------------------------------------------------------------------------------------------------
-module.exports = create_readstream = ( route ) ->
+module.exports = create_readstream = ( route, label ) ->
   ### Create and return a new instance of a read stream form a single route or a list of routes. In the
   latter case, a combined stream using https://github.com/felixge/node-combined-stream is constructed
   so that several files (that are presumable the result of an earlier split operation that was done to
@@ -60,7 +60,7 @@ module.exports = create_readstream = ( route ) ->
   collected_bytes = 0
   bar_is_shown    = no
   is_first_call   = yes
-  format          = "[:bar] :percent | :current / #{size} | +:elapseds -:etas"
+  format          = "[:bar] :percent | :current / #{size} | +:elapseds -:etas #{label}"
   #.........................................................................................................
   options   =
     width:      50

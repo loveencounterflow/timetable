@@ -26,6 +26,7 @@ rainbow                   = TRM.rainbow.bind TRM
 T                         = require './TRANSFORMERS'
 as_transformer            = T.as_transformer.bind T
 options                   = require '../options'
+global_data_limit         = options[ 'data' ]?[ 'limit' ] ? Infinity
 datasource_infos          = require './datasource-infos'
 create_readstream         = require './create-readstream'
 #...........................................................................................................
@@ -41,8 +42,8 @@ new_parser                = -> _new_parser options[ 'parser' ]
 #-----------------------------------------------------------------------------------------------------------
 ### TAINT very Berlin-specific method, shouldnt appear here ###
 @_normalize_name = ( name ) ->
-  name = name.replace /\s+\(Berlin\)(\s+Bus)?$/, ''
-  name = name.replace /^(U|S\+U)\s+/, ''
+  name = name.replace /\s+\(Berlin\)(\s+Bus)?$/,      ''
+  name = name.replace /^(U|S\+U|S)\s+/,               ''
   name = name.replace /^(Alexanderplatz) Bhf\/(.+)$/, '$1 ($2)'
   name = name.replace /^(Lichtenberg) Bhf\/(.+)$/,    '$1 ($2)'
   name = name.replace /^(Alexanderplatz) Bhf/,        '$1'
@@ -68,39 +69,39 @@ new_parser                = -> _new_parser options[ 'parser' ]
 #-----------------------------------------------------------------------------------------------------------
 ### TAINT unify with following ###
 @$normalize_station_name = ->
-  return as_transformer ( record ) =>
+  return as_transformer ( record, handler ) =>
     record[ 'name' ] = @_normalize_name record[ 'name' ]
-    return record
+    handler null, record
 
 #-----------------------------------------------------------------------------------------------------------
 @$normalize_headsign = ->
-  return as_transformer ( record ) =>
+  return as_transformer ( record, handler ) =>
     record[ 'headsign' ] = @_normalize_name record[ 'headsign' ]
-    return record
+    handler null, record
 
 #-----------------------------------------------------------------------------------------------------------
 @$convert_latlon = ->
-  return as_transformer ( record ) =>
+  return as_transformer ( record, handler ) =>
     record[ 'lat' ] = parseFloat record[ 'lat' ]
     record[ 'lon' ] = parseFloat record[ 'lon' ]
-    return record
+    handler null, record
 
 #-----------------------------------------------------------------------------------------------------------
 @$fix_ids = ->
-  return as_transformer ( record ) =>
+  return as_transformer ( record, handler ) =>
     for name, value of record
       match = name.match /^(.+)_id$/
       continue unless match?
       [ ignore
         prefix ] = match
       record[ name ] = "#{prefix}-#{value}"
-    return record
+    handler null, record
 
 # #-----------------------------------------------------------------------------------------------------------
 # @$whisper = ( message ) ->
-#   return as_transformer ( record ) =>
+#   return as_transformer ( record, handler ) =>
 #     whisper message
-#     return record
+#     handler null, record
 
 
 ############################################################################################################
@@ -109,23 +110,17 @@ new_parser                = -> _new_parser options[ 'parser' ]
 # SPECIFIC METHODS: AGENCIES
 #-----------------------------------------------------------------------------------------------------------
 @$clean_agency_record = ->
-  return as_transformer ( record ) ->
+  return as_transformer ( record, handler ) =>
     delete record[ 'agency_phone' ]
     delete record[ 'agency_lang' ]
-    return record
-
-#-----------------------------------------------------------------------------------------------------------
-@$add_agency_id = ->
-  return as_transformer ( record ) =>
-    record[ 'id'  ] = record[ '%gtfs-id' ].replace /[-_]+$/, ''
-    return record
+    handler null, record
 
 
 #===========================================================================================================
 # SPECIFIC METHODS: STOPTIMES
 #-----------------------------------------------------------------------------------------------------------
 @$clean_stoptime_record = ->
-  return as_transformer ( record ) =>
+  return as_transformer ( record, handler ) =>
     # delete record[ 'trip_id'             ]
     # delete record[ 'arrival_time'        ]
     # delete record[ 'departure_time'      ]
@@ -135,30 +130,21 @@ new_parser                = -> _new_parser options[ 'parser' ]
     delete record[ 'pickup_type'         ]
     delete record[ 'drop_off_type'       ]
     delete record[ 'shape_dist_traveled' ]
-    return record
+    handler null, record
 
 #-----------------------------------------------------------------------------------------------------------
 @$add_stoptime_idx = ->
-  return as_transformer ( record ) =>
+  return as_transformer ( record, handler ) =>
     record[ 'idx' ] = ( parseInt record[ 'stop-sequence' ], 10 ) - 1
     delete record[ 'stop-sequence' ]
-    return record
-
-#-----------------------------------------------------------------------------------------------------------
-@$add_stoptime_id = ->
-  return as_transformer ( record ) =>
-    gtfs_stop_id    = record[ '%gtfs-stop-id' ]
-    gtfs_trip_id    = record[ '%gtfs-trip-id' ]
-    idx             = record[ 'idx' ]
-    record[ 'id'  ] = "gtfs-stop:#{gtfs_stop_id}/gtfs-trip:#{gtfs_trip_id}/idx:#{idx}"
-    return record
+    handler null, record
 
 
 #===========================================================================================================
 # SPECIFIC METHODS: ROUTES
 #-----------------------------------------------------------------------------------------------------------
 @$clean_route_record = ->
-  return as_transformer ( record ) =>
+  return as_transformer ( record, handler ) =>
     # delete record[ 'route_id'         ]
     # delete record[ 'agency_id'        ]
     # delete record[ 'route_short_name' ]
@@ -168,28 +154,14 @@ new_parser                = -> _new_parser options[ 'parser' ]
     delete record[ 'route_url'        ]
     delete record[ 'route_color'      ]
     delete record[ 'route_text_color' ]
-    return record
-
-#-----------------------------------------------------------------------------------------------------------
-@$add_route_id = ( registry ) ->
-  route_idx     = -1
-  return as_transformer ( record ) =>
-    route_idx      += 1
-    gtfs_agency_id  = record[ '%gtfs-agency-id' ]
-    gtfs_id         = record[ '%gtfs-id' ]
-    name            = record[ 'name' ]
-    agency          = registry[ 'old' ][ gtfs_agency_id ]
-    return handler new Error "unable to find agency with GTFS ID #{rpr gtfs_agency_id}" unless agency?
-    agency_id       = agency[ 'id' ]
-    record[ 'id' ]  = "route:#{route_idx}/#{agency_id}/name:#{name}"
-    return record
+    handler null, record
 
 
 #===========================================================================================================
 # SPECIFIC METHODS: STATIONS
 #-----------------------------------------------------------------------------------------------------------
 @$clean_station_record = ->
-  return as_transformer ( record ) =>
+  return as_transformer ( record, handler ) =>
     # delete record[ 'stop_id'        ]
     # delete record[ 'stop_code'      ]
     # delete record[ 'stop_name'      ]
@@ -200,17 +172,70 @@ new_parser                = -> _new_parser options[ 'parser' ]
     delete record[ 'stop_url'       ]
     delete record[ 'location_type'  ]
     delete record[ 'parent_station' ]
-    return record
+    handler null, record
 
 #-----------------------------------------------------------------------------------------------------------
 @$add_station_system_name = ->
-  return as_transformer ( record ) =>
+  return as_transformer ( record, handler ) =>
     record[ '~name' ] = @_get_system_name record[ 'name' ]
+    handler null, record
+
+
+#===========================================================================================================
+# SPECIFIC METHODS: TRIPS
+#-----------------------------------------------------------------------------------------------------------
+@$clean_trip_record = ->
+  return as_transformer ( record, handler ) =>
+    # delete record[ 'route_id'        ]
+    # delete record[ 'service_id'      ]
+    # delete record[ 'trip_id'         ]
+    # delete record[ 'trip_headsign'   ]
+    delete record[ 'trip_short_name' ]
+    delete record[ 'direction_id'    ]
+    delete record[ 'block_id'        ]
+    delete record[ 'shape_id'        ]
+    handler null, record
+
+#-----------------------------------------------------------------------------------------------------------
+@$add_headsign_system_name = ->
+  return as_transformer ( record, handler ) =>
+    record[ '~headsign' ] = @_get_system_name record[ 'headsign' ]
+    handler null, record
+
+############################################################################################################
+# FINALIZATION
+#-----------------------------------------------------------------------------------------------------------
+@$add_agency_ids = ( registry ) ->
+  return ( record ) ->
+    record[ 'id'  ] = record[ '%gtfs-id' ].replace /[-_]+$/, ''
     return record
 
 #-----------------------------------------------------------------------------------------------------------
-@$add_station_id = ( registry ) ->
-  return as_transformer ( record ) =>
+@$add_stoptime_ids = ( registry ) ->
+  return ( record ) ->
+    gtfs_stop_id    = record[ '%gtfs-stop-id' ]
+    gtfs_trip_id    = record[ '%gtfs-trip-id' ]
+    idx             = record[ 'idx' ]
+    record[ 'id'  ] = "gtfs-stop:#{gtfs_stop_id}/gtfs-trip:#{gtfs_trip_id}/idx:#{idx}"
+    return record
+
+#-----------------------------------------------------------------------------------------------------------
+@$add_route_ids = ( registry ) ->
+  route_idx     = -1
+  return ( record ) ->
+    route_idx      += 1
+    gtfs_agency_id  = record[ '%gtfs-agency-id' ]
+    gtfs_id         = record[ '%gtfs-id' ]
+    name            = record[ 'name' ]
+    agency          = registry[ 'old' ][ gtfs_agency_id ]
+    return handler new Error "unable to find agency with GTFS ID #{rpr gtfs_agency_id}" unless agency?
+    agency_id       = agency[ 'id' ]
+    record[ 'id' ]  = "route:#{route_idx}/#{agency_id}/name:#{name}"
+    return record
+
+#-----------------------------------------------------------------------------------------------------------
+@$add_station_ids = ( registry ) ->
+  return ( record ) ->
     stations_by_names = registry[ '%stations-by-names' ]?= {}
     sys_name          = record[ '~name' ]
     stations          = stations_by_names[ sys_name ]?= []
@@ -220,31 +245,9 @@ new_parser                = -> _new_parser options[ 'parser' ]
     # whisper '©4p1', record[ 'id'  ]
     return record
 
-
-#===========================================================================================================
-# SPECIFIC METHODS: TRIPS
 #-----------------------------------------------------------------------------------------------------------
-@$clean_trip_record = ->
-  return as_transformer ( record ) =>
-    # delete record[ 'route_id'        ]
-    # delete record[ 'service_id'      ]
-    # delete record[ 'trip_id'         ]
-    # delete record[ 'trip_headsign'   ]
-    delete record[ 'trip_short_name' ]
-    delete record[ 'direction_id'    ]
-    delete record[ 'block_id'        ]
-    delete record[ 'shape_id'        ]
-    return record
-
-#-----------------------------------------------------------------------------------------------------------
-@$add_headsign_system_name = ->
-  return as_transformer ( record ) =>
-    record[ '~headsign' ] = @_get_system_name record[ 'headsign' ]
-    return record
-
-#-----------------------------------------------------------------------------------------------------------
-@$add_trip_id = ( registry ) ->
-  return as_transformer ( record ) =>
+@$add_trip_ids = ( registry ) ->
+  return ( record ) ->
     gtfs_trip_id      = record[ '%gtfs-id' ]
     gtfs_route_id     = record[ '%gtfs-route-id' ]
     # route             = registry[ 'old' ][ gtfs_route_id ]
@@ -256,30 +259,54 @@ new_parser                = -> _new_parser options[ 'parser' ]
     # whisper '©4p1', record[ 'id'  ]
     return record
 
+#-----------------------------------------------------------------------------------------------------------
+@finalize = ( registry, handler ) ->
+  method_by_types =
+    'agency':     ( @$add_agency_ids    registry ).bind @
+    'stoptime':   ( @$add_stoptime_ids  registry ).bind @
+    'route':      ( @$add_route_ids     registry ).bind @
+    'station':    ( @$add_station_ids   registry ).bind @
+    'trip':       ( @$add_trip_ids      registry ).bind @
+  for _, record of registry[ 'old' ]
+    method = method_by_types[ label = record[ '~label' ] ]
+    unless method?
+      warn "unable to locate method `add_#{label}_ids; skipping"
+      continue
+    method record
+    id = record[ 'id' ]
+    unless id?
+      warn "unable to find ID in #{record}; skipping"
+      continue
+    if ( duplicate = registry[ 'new' ][ id ] )?
+      return handler new Error """
+        duplicate IDs:
+        #{rpr duplicate}
+        #{rpr record}"""
+    registry[ 'new' ][ id ] = record
+  handler null
+
 
 ############################################################################################################
 # MAKE IT SO
 #-----------------------------------------------------------------------------------------------------------
 @read_agencies = ( route, registry, handler ) ->
   parser      = new_parser()
-  input       = create_readstream route
+  input       = create_readstream route, 'agencies'
   #.........................................................................................................
   input.on 'end', ->
     info 'ok: agencies'
     return handler null
   #.........................................................................................................
   input.pipe parser
-    .pipe T.$skip                       3
+    # .pipe T.$skip                       global_data_limit
     .pipe T.$as_pods()
     .pipe @$clean_agency_record()
     .pipe @$fix_ids()
     .pipe T.$delete_prefix              'agency_'
     .pipe T.$add_n4j_system_properties  'node', 'agency'
     .pipe T.$rename                     'id', '%gtfs-id'
-    .pipe @$add_agency_id()
     .pipe T.$dasherize_field_names()
     .pipe T.$register                   registry
-    # .pipe T.$show()
     .pipe T.$show_sample input
     # .pipe T.$show_and_quit()
   #.........................................................................................................
@@ -289,14 +316,14 @@ new_parser                = -> _new_parser options[ 'parser' ]
 #-----------------------------------------------------------------------------------------------------------
 @read_stop_times = ( route, registry, handler ) ->
   parser      = new_parser()
-  input       = create_readstream route
+  input       = create_readstream route, 'stop_times'
   #.........................................................................................................
   input.on 'end', ->
     info 'ok: stoptimes'
     return handler null
   #.........................................................................................................
   input.pipe parser
-    .pipe T.$skip                       3
+    .pipe T.$skip                       global_data_limit
     .pipe T.$as_pods()
     .pipe @$clean_stoptime_record()
     .pipe @$fix_ids()
@@ -306,7 +333,6 @@ new_parser                = -> _new_parser options[ 'parser' ]
     .pipe T.$rename                     'id',       '%gtfs-trip-id'
     .pipe T.$rename                     'stop-id',  '%gtfs-stop-id'
     .pipe @$add_stoptime_idx()
-    .pipe @$add_stoptime_id()
     .pipe T.$register                   registry
     .pipe T.$show_sample                input
     # .pipe T.$show_and_quit()
@@ -318,14 +344,14 @@ new_parser                = -> _new_parser options[ 'parser' ]
 ### TAINT name clash (filesystem route vs. GTFS route) ###
 @read_routes = ( route, registry, handler ) ->
   parser      = new_parser()
-  input       = create_readstream route
+  input       = create_readstream route, 'routes'
   #.........................................................................................................
   input.on 'end', ->
     info 'ok: routes'
     return handler null
   #.........................................................................................................
   input.pipe parser
-    .pipe T.$skip                       3
+    .pipe T.$skip                       global_data_limit
     .pipe T.$as_pods()
     .pipe @$clean_route_record()
     .pipe @$fix_ids()
@@ -334,9 +360,8 @@ new_parser                = -> _new_parser options[ 'parser' ]
     .pipe T.$rename                     'agency-id',        '%gtfs-agency-id'
     .pipe T.$rename                     'route-short-name', 'name'
     .pipe T.$add_n4j_system_properties  'node', 'route'
-    .pipe @$add_route_id                registry
     .pipe T.$register                   registry
-    .pipe T.$show_sample input
+    .pipe T.$show_sample                input
     # .pipe T.$show_and_quit()
   #.........................................................................................................
   whisper 'reading GTFS routes...'
@@ -345,14 +370,14 @@ new_parser                = -> _new_parser options[ 'parser' ]
 #-----------------------------------------------------------------------------------------------------------
 @read_stations = ( route, registry, handler ) ->
   parser      = new_parser()
-  input       = create_readstream route
+  input       = create_readstream route, 'stations'
   #.........................................................................................................
   input.on 'end', ->
     info 'ok: stations'
     return handler null
   #.........................................................................................................
   input.pipe parser
-    .pipe T.$skip                       3
+    .pipe T.$skip                       global_data_limit
     .pipe T.$as_pods()
     .pipe @$clean_station_record()
     .pipe @$fix_ids()
@@ -363,9 +388,8 @@ new_parser                = -> _new_parser options[ 'parser' ]
     .pipe T.$rename                     'id', '%gtfs-id'
     .pipe T.$add_n4j_system_properties  'node', 'station'
     .pipe @$convert_latlon()
-    .pipe @$add_station_id              registry
     .pipe T.$register                   registry
-    .pipe T.$show_sample input
+    .pipe T.$show_sample                input
     # .pipe T.$show_and_quit()
   #.........................................................................................................
   whisper 'reading GTFS stations...'
@@ -374,14 +398,14 @@ new_parser                = -> _new_parser options[ 'parser' ]
 #-----------------------------------------------------------------------------------------------------------
 @read_trips = ( route, registry, handler ) ->
   parser      = new_parser()
-  input       = create_readstream route
+  input       = create_readstream route, 'trips'
   #.........................................................................................................
   input.on 'end', ->
     info 'ok: trips'
     return handler null
   #.........................................................................................................
   input.pipe parser
-    .pipe T.$skip                       3
+    .pipe T.$skip                       global_data_limit
     .pipe T.$as_pods()
     .pipe @$clean_trip_record()
     .pipe @$fix_ids()
@@ -394,9 +418,8 @@ new_parser                = -> _new_parser options[ 'parser' ]
     .pipe @$normalize_headsign()
     .pipe @$add_headsign_system_name()
     .pipe T.$add_n4j_system_properties  'node', 'trip'
-    .pipe @$add_trip_id                 registry
     .pipe T.$register                   registry
-    .pipe T.$show_sample input
+    .pipe T.$show_sample                input
     # .pipe T.$show_and_quit()
   #.........................................................................................................
   whisper 'reading GTFS trips...'
@@ -425,13 +448,13 @@ new_parser                = -> _new_parser options[ 'parser' ]
       method = null
       switch gtfs_type
         when 'agency'         then method = @read_agencies
-        when 'calendar_dates' then method = @read_calendar_dates
-        when 'calendar'       then method = @read_calendar
-        when 'routes'         then method = @read_routes
-        # when 'stop_times'     then method = @read_stop_times
-        when 'stops'          then method = @read_stops
-        when 'transfers'      then method = @read_transfers
-        when 'trips'          then method = @read_trips
+        # when 'calendar_dates' then method = @read_calendar_dates
+        # when 'calendar'       then method = @read_calendar
+        # when 'routes'         then method = @read_routes
+        # # when 'stop_times'     then method = @read_stop_times
+        # when 'stops'          then method = @read_stations
+        # when 'transfers'      then method = @read_transfers
+        # when 'trips'          then method = @read_trips
       unless method?
         no_method.push "no method to read GTFS data of type #{rpr gtfs_type}; skipping"
         continue
@@ -448,11 +471,15 @@ new_parser                = -> _new_parser options[ 'parser' ]
     info "reading data for #{ok_types.length} type(s)"
     info "  (#{ok_types.join ', '})"
   #.........................................................................................................
-  ASYNC.series tasks, ( error ) =>
+  limit = options[ 'stream-transform' ]?[ 'parallel' ] ? 1
+  ASYNC.parallelLimit tasks, limit, ( error ) =>
     throw error if error?
     debug "#{if registry[ 'old' ]? then ( Object.keys registry[ 'old' ] ).length else 0} entries in registry[ 'old' ]"
     debug "#{if registry[ 'new' ]? then ( Object.keys registry[ 'new' ] ).length else 0} entries in registry[ 'new' ]"
-    setImmediate -> process.exit()
+    #.......................................................................................................
+    @finalize registry, ( error ) =>
+      return handler error if error?
+      handler null, registry
   #.........................................................................................................
   return null
 
@@ -465,7 +492,10 @@ new_parser                = -> _new_parser options[ 'parser' ]
 
 ############################################################################################################
 unless module.parent?
-  @read()
+  @read ( error, registry ) ->
+    throw error if error?
+    info registry[ 'new' ]
+    setImmediate -> process.exit()
 
 
 

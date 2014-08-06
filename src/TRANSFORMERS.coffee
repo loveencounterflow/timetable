@@ -38,7 +38,7 @@ options                   = require '../options'
   record_idx  = -1
   field_names = null
   #.........................................................................................................
-  return @as_transformer ( record ) =>
+  return @as_transformer ( record, handler ) =>
     # whisper record.join ''
     if ( record_idx += 1 ) is 0
       field_names = record
@@ -47,12 +47,12 @@ options                   = require '../options'
     for field_value, field_idx in record
       field_name      = field_names[ field_idx ]
       R[ field_name ] = field_value
-    return R
+    handler null, R
 
 #-----------------------------------------------------------------------------------------------------------
 @$delete_prefix = ( prefix ) ->
   #.........................................................................................................
-  return @as_transformer ( record ) =>
+  return @as_transformer ( record, handler ) =>
     for old_field_name, field_value of record
       continue unless TEXT.starts_with old_field_name, prefix
       new_field_name =  old_field_name.replace prefix, ''
@@ -61,25 +61,25 @@ options                   = require '../options'
       continue if record[ new_field_name ]?
       record[ new_field_name ] = field_value
       delete record[ old_field_name ]
-    return record
+    handler null, record
 
 #-----------------------------------------------------------------------------------------------------------
 @$add_n4j_system_properties = ( isa, label ) ->
   #.........................................................................................................
-  return @as_transformer ( record ) =>
+  return @as_transformer ( record, handler ) =>
     record[ '~isa'    ] = isa
     record[ '~label'  ] = label
-    return record
+    handler null, record
 
 #-----------------------------------------------------------------------------------------------------------
 @$dasherize_field_names = ->
-  return @as_transformer ( record ) =>
+  return @as_transformer ( record, handler ) =>
     for old_field_name of record
       new_field_name = old_field_name.replace /_/g, '-'
       continue if new_field_name is old_field_name
       @_rename record, old_field_name, new_field_name
     #.......................................................................................................
-    return record
+    handler null, record
 
 #-----------------------------------------------------------------------------------------------------------
 @_rename = ( record, old_field_name, new_field_name ) ->
@@ -112,21 +112,21 @@ options                   = require '../options'
 #-----------------------------------------------------------------------------------------------------------
 @$rename = ( old_field_name, new_field_name ) ->
   #.........................................................................................................
-  return @as_transformer ( record ) =>
-    return @_rename record, old_field_name, new_field_name
+  return @as_transformer ( record, handler ) =>
+    handler null, @_rename record, old_field_name, new_field_name
 
 #-----------------------------------------------------------------------------------------------------------
 @$copy = ( old_field_name, new_field_name ) ->
   #.........................................................................................................
-  return @as_transformer ( record ) =>
-    return @_copy record, old_field_name, new_field_name, 'copy'
+  return @as_transformer ( record, handler ) =>
+    handler null, @_copy record, old_field_name, new_field_name, 'copy'
 
 #-----------------------------------------------------------------------------------------------------------
 ### TAINT gtfs-specific method shouldnt appear here ###
 ### TAINT consider sub-registries by node label ###
 @$register = ( registry ) ->
   #.........................................................................................................
-  return @as_transformer ( record ) =>
+  return @as_transformer ( record, handler ) =>
     # whisper record
     old_registry  = registry[ 'old' ]?= {}
     new_registry  = registry[ 'new' ]?= {}
@@ -143,7 +143,7 @@ options                   = require '../options'
         throw new Error "already registered in `registry[ 'new' ]`: #{rpr record}"
       new_registry[ id ] = record
     #.......................................................................................................
-    return record
+    handler null, record
 
 #-----------------------------------------------------------------------------------------------------------
 @$show_sample = ( input_stream ) ->
@@ -151,9 +151,9 @@ options                   = require '../options'
   records = []
   input_stream.once 'end', =>
     info rpr records[ Math.floor Math.random() * records.length ]
-  return @as_transformer ( record ) =>
+  return @as_transformer ( record, handler ) =>
     records.push record
-    return record
+    handler null, record
 
 #-----------------------------------------------------------------------------------------------------------
 @$skip = ( limit = 1 ) ->
@@ -171,8 +171,8 @@ options                   = require '../options'
 
 #-----------------------------------------------------------------------------------------------------------
 @$show_and_quit = ->
-  return @as_transformer ( record ) =>
+  return @as_transformer ( record, handler ) =>
     info rpr record
     warn 'aborting from `TRANSFORMERS.show_and_quit`'
     setImmediate -> process.exit()
-
+    handler null, record

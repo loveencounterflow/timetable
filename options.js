@@ -37,6 +37,7 @@
       'parallel': 10
     },
     'data': {
+      'limit': 10,
       'types': require('./lib/gtfs-types'),
       'info': data_info,
       'home': data_home

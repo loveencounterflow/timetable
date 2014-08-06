@@ -39,7 +39,7 @@ get_datasource_infos = ( home = datasources_home ) ->
   #.........................................................................................................
   for route in glob.sync matcher
     filename = njs_path.basename route, njs_path.extname route
-    continue unless filename in options[ 'data' ][ 'types' ]
+    continue unless filename in options[ 'data' ][ 'gtfs-types' ]
     #.......................................................................................................
     count            += 1
     collection_name   = njs_path.basename njs_path.dirname route
@@ -52,7 +52,7 @@ get_datasource_infos = ( home = datasources_home ) ->
   for route in glob.sync matcher
     virtual_route = route.replace /\.-[a-z][a-z][a-z][a-z]$/, ''
     filename = njs_path.basename virtual_route, njs_path.extname virtual_route
-    continue unless filename in options[ 'data' ][ 'types' ]
+    continue unless filename in options[ 'data' ][ 'gtfs-types' ]
     #.......................................................................................................
     count            += 1
     collection_name   = njs_path.basename njs_path.dirname virtual_route

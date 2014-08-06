@@ -35,7 +35,8 @@ module.exports = options =
   #.........................................................................................................
   'data':
     'limit':              10
-    'types':              require './lib/gtfs-types'
+    'gtfs-types':         require './lib/gtfs-types'
+    'timetable-types':    require './lib/timetable-types'
     'info':               data_info
     'home':               data_home
 

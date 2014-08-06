@@ -122,30 +122,6 @@ options                   = require '../options'
     handler null, @_copy record, old_field_name, new_field_name, 'copy'
 
 #-----------------------------------------------------------------------------------------------------------
-### TAINT gtfs-specific method shouldnt appear here ###
-### TAINT consider sub-registries by node label ###
-@$register = ( registry ) ->
-  #.........................................................................................................
-  return @as_transformer ( record, handler ) =>
-    # whisper record
-    old_registry  = registry[ 'old' ]?= {}
-    new_registry  = registry[ 'new' ]?= {}
-    gtfs_id       = record[ '%gtfs-id' ]
-    id            = record[       'id' ]
-    #.......................................................................................................
-    if gtfs_id?
-      if old_registry[ gtfs_id ]?
-        throw new Error "already registered in `registry[ 'old' ]`: #{rpr record}"
-      old_registry[ gtfs_id ] = record
-    #.......................................................................................................
-    if id?
-      if new_registry[ id ]?
-        throw new Error "already registered in `registry[ 'new' ]`: #{rpr record}"
-      new_registry[ id ] = record
-    #.......................................................................................................
-    handler null, record
-
-#-----------------------------------------------------------------------------------------------------------
 @$show_sample = ( input_stream ) ->
   ### TAINT may introduce a memory leak. ###
   records = []

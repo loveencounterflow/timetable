@@ -77,6 +77,7 @@ new_csv_parser            = -> _new_csv_parser options[ 'parser' ]
     .pipe T.$dasherize_field_names()
     .pipe @$register                    registry
     # .pipe T.$show()
+    .pipe T.$count                      input, 'agency'
     .pipe T.$show_sample                input
     # .pipe T.$show_and_quit()
   #.........................................................................................................
@@ -113,6 +114,7 @@ new_csv_parser            = -> _new_csv_parser options[ 'parser' ]
     .pipe T.$rename                     'agency-id',        '%gtfs-agency-id'
     .pipe T.$rename                     'route-short-name', 'name'
     .pipe @$register                    registry
+    .pipe T.$count                      input, 'routes'
     .pipe T.$show_sample                input
   #.........................................................................................................
   whisper 'reading GTFS routes...'
@@ -154,6 +156,7 @@ new_csv_parser            = -> _new_csv_parser options[ 'parser' ]
     .pipe T.$rename                     'id', '%gtfs-id'
     .pipe @$convert_latlon()
     .pipe @$register                    registry
+    .pipe T.$count                      input, 'stops'
     .pipe T.$show_sample                input
   #.........................................................................................................
   whisper 'reading GTFS stops...'
@@ -176,7 +179,7 @@ new_csv_parser            = -> _new_csv_parser options[ 'parser' ]
 
 
 #===========================================================================================================
-# SPECIFIC METHODS: ROUTES
+# SPECIFIC METHODS: TRIPS
 #-----------------------------------------------------------------------------------------------------------
 @read_trips = ( registry, route, handler ) ->
   parser      = new_csv_parser()
@@ -266,6 +269,7 @@ new_csv_parser            = -> _new_csv_parser options[ 'parser' ]
     idx += 1
     # record[ '%gtfs-id' ]  = "#{record[ '']}"
     handler null, record
+
 
 #===========================================================================================================
 # READ METHOD

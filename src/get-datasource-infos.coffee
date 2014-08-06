@@ -29,7 +29,7 @@ glob                      = require 'glob'
 
 
 #-----------------------------------------------------------------------------------------------------------
-get_datasource_infos = ( home = datasources_home ) ->
+module.exports = get_datasource_infos = ( home = datasources_home ) ->
   R       = {}
   matcher = njs_path.join home, '**/*.txt'
   count   = 0
@@ -79,9 +79,5 @@ get_datasource_infos = ( home = datasources_home ) ->
     process.exit()
   #.........................................................................................................
   return R
-
-
-############################################################################################################
-module.exports = get_datasource_infos()
 
 

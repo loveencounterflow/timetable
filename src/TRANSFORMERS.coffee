@@ -111,22 +111,27 @@ options                   = require '../options'
 
 #-----------------------------------------------------------------------------------------------------------
 @$rename = ( old_field_name, new_field_name ) ->
-  #.........................................................................................................
   return @as_transformer ( record, handler ) =>
     handler null, @_rename record, old_field_name, new_field_name
 
 #-----------------------------------------------------------------------------------------------------------
 @$copy = ( old_field_name, new_field_name ) ->
-  #.........................................................................................................
   return @as_transformer ( record, handler ) =>
     handler null, @_copy record, old_field_name, new_field_name, 'copy'
+
+#-----------------------------------------------------------------------------------------------------------
+@$set = ( field_name, field_value ) ->
+  return @as_transformer ( record, handler ) =>
+    record[ field_name ] = field_value
+    handler null, record
 
 #-----------------------------------------------------------------------------------------------------------
 @$show_sample = ( input_stream ) ->
   ### TAINT may introduce a memory leak. ###
   records = []
   input_stream.once 'end', =>
-    info rpr records[ Math.floor Math.random() * records.length ]
+    whisper '©5r0', "displaying random record out of #{records.length}"
+    debug   '©5r0', rpr records[ Math.floor Math.random() * records.length ]
   return @as_transformer ( record, handler ) =>
     records.push record
     handler null, record
@@ -143,6 +148,15 @@ options                   = require '../options'
 @$show = ->
   return @as_transformer ( record, handler ) =>
     info rpr record
+    handler null, record
+
+#-----------------------------------------------------------------------------------------------------------
+@$count = ( input_stream, title ) ->
+  count = 0
+  input_stream.on 'end', ->
+    urge ( title ? 'Count' ) + ':', count
+  return @as_transformer ( record, handler ) =>
+    count += 1
     handler null, record
 
 #-----------------------------------------------------------------------------------------------------------

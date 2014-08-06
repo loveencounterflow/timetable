@@ -1,9 +1,17 @@
 
 
 ############################################################################################################
+# njs_util                  = require 'util'
+# njs_path                  = require 'path'
+# njs_fs                    = require 'fs'
+# njs_crypto                  = require 'crypto'
+#...........................................................................................................
+# BAP                       = require 'coffeenode-bitsnpieces'
+# TYPES                     = require 'coffeenode-types'
+# TEXT                      = require 'coffeenode-text'
 TRM                       = require 'coffeenode-trm'
 rpr                       = TRM.rpr.bind TRM
-badge                     = 'TIMETABLE/main'
+badge                     = 'TIMETABLE/timetable-from-gtfs-data'
 log                       = TRM.get_logger 'plain',     badge
 info                      = TRM.get_logger 'info',      badge
 whisper                   = TRM.get_logger 'whisper',   badge
@@ -15,36 +23,23 @@ urge                      = TRM.get_logger 'urge',      badge
 echo                      = TRM.echo.bind TRM
 rainbow                   = TRM.rainbow.bind TRM
 #...........................................................................................................
-GTFS_READER               = require './GTFS-READER'
-READER                    = require './READER'
-REGISTRY                  = require './REGISTRY'
-options                   = require '../options'
+REGISTRY									= require './REGISTRY'
 
 
 #-----------------------------------------------------------------------------------------------------------
-@main = ( handler ) ->
-  registry = REGISTRY.new_registry()
-  GTFS_READER.main registry, ( error ) =>
-    return handler error if error?
-    handler null, registry
-    # @timetable_from_gtfs_data gtfs_registry, ( error, registry ) =>
-    #   return handler error if error?
-    #   handler registry
-  #.........................................................................................................
-  return null
+@timetable_from_gtfs_data = ( gtfs_registry, handler ) ->
+
 
 
 ############################################################################################################
 unless module.parent?
-  @main ( error, registry ) =>
-    TEXT = require 'coffeenode-text'
+  @main ( error, registry ) ->
     throw error if error?
-    for gtfs_type in options[ 'data' ][ 'gtfs-types' ]
-      prefix = 'GTFS ' + ( TEXT.flush_left gtfs_type + ':', 15 )
-      info prefix, ( Object.keys registry[ '%gtfs' ][ gtfs_type ] ).length
-    # for type in options[ 'data' ][ 'timetable-types' ]
-    #   prefix = '     ' + ( TEXT.flush_left      type + ':', 15 )
-    #   info prefix, ( Object.keys registry[ gtfs_type ] ).length
-    setImmediate -> process.exit()
+    info registry
+
+
+
+
+
 
 

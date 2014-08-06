@@ -21,7 +21,6 @@ catch error
   process.exit()
 
 
-warn data_home
 
 #-----------------------------------------------------------------------------------------------------------
 module.exports = options =
@@ -31,12 +30,12 @@ module.exports = options =
     'skip_empty_lines':   yes
   #.........................................................................................................
   'stream-transform':
-    'parallel':           10
+    'parallel':           11
   #.........................................................................................................
   'data':
-    'limit':              10
-    'gtfs-types':         require './lib/gtfs-types'
-    'timetable-types':    require './lib/timetable-types'
+    # 'limit':              12
+    'gtfs-types':         "agency calendar_dates calendar routes stop_times stops transfers trips".split /\s+/
+    'timetable-types':    "agency route station course tour".split /\s+/
     'info':               data_info
     'home':               data_home
 

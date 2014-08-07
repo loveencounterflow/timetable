@@ -19,6 +19,12 @@ $count = ( input_stream, title ) ->
     handler null, record
 
 #-----------------------------------------------------------------------------------------------------------
+$show = ->
+  return as_transformer ( record, handler ) =>
+    log record
+    handler null, record
+
+#-----------------------------------------------------------------------------------------------------------
 read_trips = ( route, handler ) ->
   # parser      = new_csv_parser()
   input       = fs.createReadStream route
@@ -55,10 +61,12 @@ read_trips = ( route, handler ) ->
     .pipe $count    input, 'trips X'
     .pipe $count    input, 'trips Y'
     .pipe $count    input, 'trips Z'
+    # .pipe $show
   #.........................................................................................................
   return null
 
-route = '/Volumes/Storage/cnd/node_modules/timetable-data/germany-berlin-2014/trips.txt'
+# route = '/Volumes/Storage/cnd/node_modules/timetable-data/germany-berlin-2014/trips.txt'
+route = '/Volumes/Storage/cnd/node_modules/timetable-data/germany-berlin-2014/agency.txt'
 read_trips route, ( error ) ->
   throw error if error?
   log 'ok'

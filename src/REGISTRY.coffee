@@ -46,7 +46,7 @@ options                   = require '../options'
   #.......................................................................................................
   sub_registry = registry[ '%gtfs' ]?[ gtfs_type ]
   throw new Error "unable to locate registry for GTFS type #{rpr gtfs_type}" unless sub_registry?
-  if ( dupe = sub_registry[ gtfs_id ] )? and dupe isnt record
+  if ( dupe = sub_registry[ gtfs_id ] )? # and dupe isnt record
     throw new Error """already registered:
       #{rpr dupe}
       #{rpr record}"""

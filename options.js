@@ -32,7 +32,7 @@
       'skip_empty_lines': true
     },
     'stream-transform': {
-      'parallel': 2
+      'parallel': Infinity
     },
     'data': {
       'gtfs-types': "agency calendar_dates calendar routes stop_times stops transfers trips".split(/\s+/),

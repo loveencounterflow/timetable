@@ -125,7 +125,8 @@ P                         = require 'pipedreams'
     # .pipe P.$count    input, 'trips X'
     # .pipe P.$count    input, 'trips Y'
     # .pipe P.$count    input, 'trips Z'
-    .pipe P.$show()
+    # .pipe P.$show()
+    .pipe P.$show_table input
   #.........................................................................................................
   return null
 
@@ -138,8 +139,6 @@ unless module.parent
   @read_trips route, ( error ) ->
     throw error if error?
     log 'ok'
-
-
 
 
 

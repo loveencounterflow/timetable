@@ -23,19 +23,16 @@ urge                      = TRM.get_logger 'urge',      badge
 echo                      = TRM.echo.bind TRM
 rainbow                   = TRM.rainbow.bind TRM
 #...........................................................................................................
-T                         = require './TRANSFORMERS'
-as_transformer            = T.as_transformer.bind T
 options                   = require '../options'
 global_data_limit         = options[ 'data' ]?[ 'limit' ] ? Infinity
 datasource_infos          = ( require './get-datasource-infos' )()
-create_readstream         = require './create-readstream'
 REGISTRY                  = require './REGISTRY'
 #...........................................................................................................
 ASYNC                     = require 'async'
 #...........................................................................................................
-### https://github.com/wdavidw/node-csv-parse ###
-_new_csv_parser           = require 'csv-parse'
-new_csv_parser            = -> _new_csv_parser options[ 'parser' ]
+### https://github.com/loveencounterflow/pipedreams ###
+P                         = require 'pipedreams'
+$                         = P.$.bind P
 
 
 
@@ -43,13 +40,13 @@ new_csv_parser            = -> _new_csv_parser options[ 'parser' ]
 # GENERIC METHODS
 #-----------------------------------------------------------------------------------------------------------
 @$register = ( registry ) ->
-  return as_transformer ( record, handler ) =>
+  return $ ( record, handler ) =>
     REGISTRY.register_gtfs registry, record
     handler null, record
 
 #-----------------------------------------------------------------------------------------------------------
 @$convert_latlon = ->
-  return as_transformer ( record, handler ) =>
+  return $ ( record, handler ) =>
     record[ 'lat' ] = parseFloat record[ 'lat' ]
     record[ 'lon' ] = parseFloat record[ 'lon' ]
     handler null, record
@@ -61,32 +58,37 @@ new_csv_parser            = -> _new_csv_parser options[ 'parser' ]
 # SPECIFIC METHODS: AGENCY
 #-----------------------------------------------------------------------------------------------------------
 @read_agency = ( registry, route, handler ) ->
-  parser      = new_csv_parser()
-  input       = create_readstream route, 'agency'
+  input       = P.create_readstream route, 'agency'
   #.........................................................................................................
   input.on 'end', ->
     info 'ok: agency'
     return handler null
   #.........................................................................................................
-  input.pipe parser
-    .pipe T.$as_pods()
+  input.pipe P.$split()
+    .pipe P.$skip_empty()
+    # .pipe P.$skip_after                 1000
+    .pipe P.$collect_sample             input, 4, ( _, collector ) -> debug collector
+    .pipe P.$sample                     1 / 10, headers: true, seed: 5
+    .pipe P.$parse_csv()
     .pipe @$clean_agency_record()
-    .pipe T.$delete_prefix              'agency_'
-    .pipe T.$set                        '%gtfs-type', 'agency'
-    .pipe T.$rename                     'id', '%gtfs-id'
-    .pipe T.$dasherize_field_names()
+    .pipe P.$delete_prefix              'agency_'
+    .pipe P.$set                        '%gtfs-type', 'agency'
+    .pipe P.$rename                     'id', '%gtfs-id'
+    .pipe P.$dasherize_field_names()
     .pipe @$register                    registry
-    # .pipe T.$show()
-    .pipe T.$count                      input, 'agency'
-    # .pipe T.$show_sample                input
-    # .pipe T.$show_and_quit()
+    .pipe P.$show_table                 input
+    # .pipe P.$show                       input
+  #   # .pipe P.$show()
+  #   .pipe P.$count                      input, 'agency'
+  #   # .pipe P.$show_sample                input
+  #   # .pipe P.$show_and_quit()
   #.........................................................................................................
   whisper 'reading GTFS agency...'
   return null
 
 #-----------------------------------------------------------------------------------------------------------
 @$clean_agency_record = ->
-  return as_transformer ( record, handler ) =>
+  return $ ( record, handler ) =>
     delete record[ 'agency_phone' ]
     delete record[ 'agency_lang' ]
     handler null, record
@@ -97,32 +99,31 @@ new_csv_parser            = -> _new_csv_parser options[ 'parser' ]
 #-----------------------------------------------------------------------------------------------------------
 ### TAINT name clash (filesystem route vs. GTFS route) ###
 @read_routes = ( registry, route, handler ) ->
-  parser      = new_csv_parser()
-  input       = create_readstream route, 'routes'
+  input       = P.create_readstream route, 'routes'
   #.........................................................................................................
   input.on 'end', ->
     info 'ok: routes'
     return handler null
   #.........................................................................................................
   input.pipe parser
-    .pipe T.$skip                       global_data_limit
-    .pipe T.$as_pods()
+    .pipe P.$skip                       global_data_limit
+    .pipe P.$as_pods()
     .pipe @$clean_routes_record()
-    .pipe T.$dasherize_field_names()
-    .pipe T.$set                        '%gtfs-type',       'routes'
-    .pipe T.$rename                     'route-id',         '%gtfs-id'
-    .pipe T.$rename                     'agency-id',        '%gtfs-agency-id'
-    .pipe T.$rename                     'route-short-name', 'name'
+    .pipe P.$dasherize_field_names()
+    .pipe P.$set                        '%gtfs-type',       'routes'
+    .pipe P.$rename                     'route-id',         '%gtfs-id'
+    .pipe P.$rename                     'agency-id',        '%gtfs-agency-id'
+    .pipe P.$rename                     'route-short-name', 'name'
     .pipe @$register                    registry
-    .pipe T.$count                      input, 'routes'
-    # .pipe T.$show_sample                input
+    .pipe P.$count                      input, 'routes'
+    # .pipe P.$show_sample                input
   #.........................................................................................................
   whisper 'reading GTFS routes...'
   return null
 
 #-----------------------------------------------------------------------------------------------------------
 @$clean_routes_record = ->
-  return as_transformer ( record, handler ) =>
+  return $ ( record, handler ) =>
     # delete record[ 'route_id'         ]
     # delete record[ 'agency_id'        ]
     # delete record[ 'route_short_name' ]
@@ -139,32 +140,31 @@ new_csv_parser            = -> _new_csv_parser options[ 'parser' ]
 # SPECIFIC METHODS: STOPS
 #-----------------------------------------------------------------------------------------------------------
 @read_stops = ( registry, route, handler ) ->
-  parser      = new_csv_parser()
-  input       = create_readstream route, 'stops'
+  input       = P.create_readstream route, 'stops'
   #.........................................................................................................
   input.on 'end', ->
     info 'ok: stops'
     return handler null
   #.........................................................................................................
   input.pipe parser
-    .pipe T.$skip                       global_data_limit
-    .pipe T.$as_pods()
+    .pipe P.$skip                       global_data_limit
+    .pipe P.$as_pods()
     .pipe @$clean_stops_record()
-    .pipe T.$delete_prefix              'stop_'
-    .pipe T.$set                        '%gtfs-type', 'stops'
-    # .pipe T.$copy                       'name', '%gtfs-name'
-    .pipe T.$rename                     'id', '%gtfs-id'
+    .pipe P.$delete_prefix              'stop_'
+    .pipe P.$set                        '%gtfs-type', 'stops'
+    # .pipe P.$copy                       'name', '%gtfs-name'
+    .pipe P.$rename                     'id', '%gtfs-id'
     .pipe @$convert_latlon()
     .pipe @$register                    registry
-    .pipe T.$count                      input, 'stops'
-    # .pipe T.$show_sample                input
+    .pipe P.$count                      input, 'stops'
+    # .pipe P.$show_sample                input
   #.........................................................................................................
   whisper 'reading GTFS stops...'
   return null
 
 #-----------------------------------------------------------------------------------------------------------
 @$clean_stops_record = ->
-  return as_transformer ( record, handler ) =>
+  return $ ( record, handler ) =>
     # delete record[ 'stop_id'        ]
     # delete record[ 'stop_code'      ]
     # delete record[ 'stop_name'      ]
@@ -182,72 +182,56 @@ new_csv_parser            = -> _new_csv_parser options[ 'parser' ]
 # SPECIFIC METHODS: TRIPS
 # #-----------------------------------------------------------------------------------------------------------
 # @read_trips = ( registry, route, handler ) ->
-#   parser      = new_csv_parser()
-#   input       = create_readstream route, 'trips'
+#   input       = P.create_readstream route, 'trips'
 #   #.........................................................................................................
 #   input.on 'end', ->
 #     info 'ok: trips'
 #     return handler null
 #   #.........................................................................................................
 #   input.pipe parser
-#     .pipe T.$skip                       global_data_limit
-#     .pipe T.$as_pods()
+#     .pipe P.$skip                       global_data_limit
+#     .pipe P.$as_pods()
 #     .pipe @$clean_trip_record()
-#     .pipe T.$delete_prefix              'trip_'
-#     .pipe T.$dasherize_field_names()
-#     .pipe T.$set                        '%gtfs-type', 'trips'
-#     .pipe T.$rename                     'id',         '%gtfs-id'
-#     .pipe T.$rename                     'route-id',   '%gtfs-routes-id'
-#     .pipe T.$rename                     'service-id', '%gtfs-service-id'
+#     .pipe P.$delete_prefix              'trip_'
+#     .pipe P.$dasherize_field_names()
+#     .pipe P.$set                        '%gtfs-type', 'trips'
+#     .pipe P.$rename                     'id',         '%gtfs-id'
+#     .pipe P.$rename                     'route-id',   '%gtfs-routes-id'
+#     .pipe P.$rename                     'service-id', '%gtfs-service-id'
 #     .pipe @$register                    registry
-#     .pipe T.$show_sample                input
+#     .pipe P.$show_sample                input
 #   #.........................................................................................................
 #   whisper 'reading GTFS trips...'
 #   return null
 
 #-----------------------------------------------------------------------------------------------------------
 @read_trips = ( registry, route, handler ) ->
-  parser      = new_csv_parser()
-  input       = create_readstream route, 'trips'
+  input       = P.create_readstream route, 'trips'
   #.........................................................................................................
   input.on 'end', ->
     info 'ok: trips'
     return handler null
   input.setMaxListeners 100 # <<<<<<
   #.........................................................................................................
-  # input.pipe parser
-  input.pipe T.$count                   input, 'trips A'
-    .pipe T.$count                      input, 'trips B'
-    .pipe T.$count                      input, 'trips C'
-    .pipe T.$count                      input, 'trips D'
-    .pipe T.$count                      input, 'trips E'
-    .pipe T.$count                      input, 'trips F'
-    .pipe T.$count                      input, 'trips G'
-    .pipe T.$count                      input, 'trips H'
-    .pipe T.$count                      input, 'trips I'
-    .pipe T.$count                      input, 'trips J'
-    .pipe T.$count                      input, 'trips K'
-    .pipe T.$count                      input, 'trips M'
-    .pipe T.$count                      input, 'trips N'
-    .pipe T.$count                      input, 'trips O'
-    .pipe T.$count                      input, 'trips P'
-    .pipe T.$count                      input, 'trips Q'
-    .pipe T.$count                      input, 'trips R'
-    .pipe T.$count                      input, 'trips R'
-    .pipe T.$count                      input, 'trips S'
-    .pipe T.$count                      input, 'trips T'
-    .pipe T.$count                      input, 'trips U'
-    .pipe T.$count                      input, 'trips V'
-    .pipe T.$count                      input, 'trips W'
-    .pipe T.$count                      input, 'trips X'
-    .pipe T.$count                      input, 'trips Y'
-    .pipe T.$count                      input, 'trips Z'
+  input.pipe P.$split()
+    .pipe P.$skip_empty()
+    .pipe P.$parse_csv()
+    .pipe P.$count                      input, 'trips A'
+    .pipe @$clean_trip_record()
+    .pipe P.$delete_prefix              'trip_'
+    .pipe P.$dasherize_field_names()
+    .pipe P.$set                        '%gtfs-type', 'trips'
+    .pipe P.$rename                     'id',         '%gtfs-id'
+    .pipe P.$rename                     'route-id',   '%gtfs-routes-id'
+    .pipe P.$rename                     'service-id', '%gtfs-service-id'
+    .pipe @$register                    registry
+    .pipe P.$show_sample                input
   #.........................................................................................................
   return null
 
 #-----------------------------------------------------------------------------------------------------------
 @$clean_trip_record = ->
-  return as_transformer ( record, handler ) =>
+  return $ ( record, handler ) =>
     # delete record[ 'route_id'        ]
     # delete record[ 'service_id'      ]
     # delete record[ 'trip_id'         ]
@@ -262,39 +246,41 @@ new_csv_parser            = -> _new_csv_parser options[ 'parser' ]
 # SPECIFIC METHODS: STOPTIMES
 #-----------------------------------------------------------------------------------------------------------
 @read_stop_times = ( registry, route, handler ) ->
-  parser      = new_csv_parser()
-  input       = create_readstream route, 'stop_times'
+  input       = P.create_readstream route, 'stop_times'
   #.........................................................................................................
   input.on 'end', ->
     info 'ok: stoptimes'
     return handler null
   #.........................................................................................................
-  input.pipe parser
-    .pipe T.$count                      input, 'stop_times A'
-    .pipe T.$skip                       global_data_limit
-    .pipe T.$count                      input, 'stop_times B'
-    .pipe T.$as_pods()
-    .pipe T.$count                      input, 'stop_times C'
+  input.pipe P.$split()
+    # .pipe P.$skip_after                 1000
+    .pipe P.$sample                     1 / 1e4
+    .pipe P.$skip_empty()
+    .pipe P.$parse_csv()
+    .pipe P.$show_sample                input
+    .pipe P.$count                      input, 'stop_times A'
+    # .pipe P.$as_pods()
+    .pipe P.$count                      input, 'stop_times B'
     .pipe @$clean_stoptime_record()
-    .pipe T.$count                      input, 'stop_times D'
-    .pipe T.$set                        '%gtfs-type', 'stop_times'
-    # .pipe T.$delete_prefix              'trip_'
-    # .pipe T.$dasherize_field_names()
-    # .pipe T.$rename                     'id',             '%gtfs-trip-id'
-    # .pipe T.$rename                     'stop-id',        '%gtfs-stop-id'
-    # .pipe T.$rename                     'arrival-time',   'arr'
-    # .pipe T.$rename                     'departure-time', 'dep'
-    # .pipe @$add_stoptimes_gtfsid()
-    # .pipe @$register                    registry
-    .pipe T.$count                      input, 'stop_times E'
-    # .pipe T.$show_sample                input
+    .pipe P.$count                      input, 'stop_times C'
+    .pipe P.$set                        '%gtfs-type', 'stop_times'
+    .pipe P.$count                      input, 'stop_times D'
+    # .pipe P.$delete_prefix              'trip_'
+    # .pipe P.$dasherize_field_names()
+    # .pipe P.$rename                     'id',             '%gtfs-trip-id'
+    # .pipe P.$rename                     'stop-id',        '%gtfs-stop-id'
+    # .pipe P.$rename                     'arrival-time',   'arr'
+    # .pipe P.$rename                     'departure-time', 'dep'
+    .pipe @$add_stoptimes_gtfsid()
+    .pipe @$register                    registry
+    .pipe P.$count                      input, 'stop_times E'
   #.........................................................................................................
   whisper 'reading GTFS stoptimes...'
   return null
 
 #-----------------------------------------------------------------------------------------------------------
 @$clean_stoptime_record = ->
-  return as_transformer ( record, handler ) =>
+  return $ ( record, handler ) =>
     # delete record[ 'trip_id'             ]
     # delete record[ 'arrival_time'        ]
     # delete record[ 'departure_time'      ]
@@ -308,9 +294,10 @@ new_csv_parser            = -> _new_csv_parser options[ 'parser' ]
 
 #-----------------------------------------------------------------------------------------------------------
 @$add_stoptimes_gtfsid = ->
-  return as_transformer ( record, handler ) =>
+  idx = 0
+  return $ ( record, handler ) =>
+    record[ '%gtfs-id' ]  = "#{idx}"
     idx += 1
-    # record[ '%gtfs-id' ]  = "#{record[ '']}"
     handler null, record
 
 
@@ -327,8 +314,8 @@ new_csv_parser            = -> _new_csv_parser options[ 'parser' ]
     ok_types  = []
     #.......................................................................................................
     for gtfs_type in options[ 'data' ][ 'gtfs-types' ]
-      if gtfs_type is 'stop_times'  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        warn "skipping stop_times"  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      if gtfs_type isnt 'agency'  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        warn "skipping != agency"  # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         continue                    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       route = route_by_types[ gtfs_type ]
       unless route?

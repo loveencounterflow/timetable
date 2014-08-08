@@ -52,6 +52,10 @@ $                         = P.$.bind P
     handler null, record
 
 
+f = ( record, handler ) ->
+  TRM.dir @
+  handler null, record
+
 ############################################################################################################
 # SPECIFIC METHODS
 #===========================================================================================================
@@ -60,31 +64,43 @@ $                         = P.$.bind P
 @read_agency = ( registry, route, handler ) ->
   input       = P.create_readstream route, 'agency'
   #.........................................................................................................
-  input.on 'end', ->
-    info 'ok: agency'
-    return handler null
-  #.........................................................................................................
   input.pipe P.$split()
     .pipe P.$skip_empty()
     # .pipe P.$skip_after                 1000
-    .pipe P.$collect_sample             input, 4, ( _, collector ) -> debug collector
+    # .pipe P.$collect_sample             input, 4, ( _, collector ) -> debug collector
     .pipe P.$sample                     1 / 10, headers: true, seed: 5
     .pipe P.$parse_csv()
     .pipe @$clean_agency_record()
     .pipe P.$delete_prefix              'agency_'
     .pipe P.$set                        '%gtfs-type', 'agency'
     .pipe P.$rename                     'id', '%gtfs-id'
+    .pipe @$XXXXX_clean_agency_record()
     .pipe P.$dasherize_field_names()
     .pipe @$register                    registry
-    .pipe P.$show_table                 input
-    # .pipe P.$show                       input
+    # .pipe P.$show_table                 input
+    # .pipe $ ( record, handler ) -> handler null, null
+    # .pipe P.$collect                    input, 4, ( _, collector ) -> help collector
+    .pipe $ f
+    .pipe P.$show                       input
   #   # .pipe P.$show()
   #   .pipe P.$count                      input, 'agency'
   #   # .pipe P.$show_sample                input
   #   # .pipe P.$show_and_quit()
+    .on 'end', ->
+      info 'ok: agency'
+      f null, ( error, record ) ->
+        whisper 'discarded'
+      return handler null
   #.........................................................................................................
   whisper 'reading GTFS agency...'
   return null
+
+#-----------------------------------------------------------------------------------------------------------
+@$XXXXX_clean_agency_record = ->
+  return $ ( record, handler ) =>
+    delete record[ name ] for name of record when name not in [ '%gtfs-id', '%gtfs-type', ]
+    record[ '%gtfs-id' ] = record[ '%gtfs-id' ].replace /[-_]/g, ''
+    handler null, record
 
 #-----------------------------------------------------------------------------------------------------------
 @$clean_agency_record = ->

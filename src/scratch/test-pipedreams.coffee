@@ -49,6 +49,7 @@ rainbow                   = TRM.rainbow.bind TRM
 # new_csv_parser            = -> _new_csv_parser delimiter: ','
 # $                         = ES.map.bind ES
 P                         = require 'pipedreams'
+$                         = P.$.bind P
 
 
 #-----------------------------------------------------------------------------------------------------------
@@ -130,13 +131,76 @@ P                         = require 'pipedreams'
   #.........................................................................................................
   return null
 
+
+#-----------------------------------------------------------------------------------------------------------
+@test_batch = ( route, handler ) ->
+  input = P.create_readstream route
+  input.pipe P.$split()
+    # .pipe $ ( record, handler ) -> handler null, if /^O/.test record then record else undefined
+    .pipe P.$sample                     1 / 5
+    #.......................................................................................................
+    .pipe P.$signal_end()
+    .pipe P.$batch 3
+    #.......................................................................................................
+    .pipe $ ( record, handler ) ->
+      if record is P.eos  then warn 'over'
+      else                help record.length
+      handler null, record
+    #.......................................................................................................
+    # .pipe P.$show input
+    .on 'end', ->
+      handler null
+
+#-----------------------------------------------------------------------------------------------------------
+@test_batch_with_handler = ( route, handler ) ->
+  input = P.create_readstream route
+  input.pipe P.$split()
+    # .pipe $ ( record, handler ) -> handler null, if /^O/.test record then record else undefined
+    .pipe P.$sample                     1 / 5#, seed: 123
+    #.......................................................................................................
+    .pipe P.$signal_end()
+    .pipe P.$batch 3, ( error, batch ) ->
+      throw error if error?
+      if batch is P.eos   then  warn 'handler:', 'over'
+      else                      help 'handler:', batch.length
+    #.......................................................................................................
+    .pipe $ ( record, handler ) ->
+      if record is P.eos  then  warn    'pipe:', 'over'
+      else                      whisper 'pipe:', record.length
+      handler null, record
+    #.......................................................................................................
+    # .pipe P.$show input
+    .on 'end', ->
+      handler null
+
+#-----------------------------------------------------------------------------------------------------------
+@test_show_sample = ( route, handler ) ->
+  input = P.create_readstream route
+  input.pipe P.$split()
+    .pipe P.$skip_empty()
+    # .pipe P.$skip_after 2
+    #.......................................................................................................
+    # .pipe P.$sample 1 / 10, seed: 1
+    .pipe P.$collect_sample input, 3, headers: yes, seed: 4, ( error, sample ) ->
+      urge sample
+      # if record is P.eos  then  warn    'pipe:', 'over'
+      # else                      whisper 'pipe:', record.length
+    #.......................................................................................................
+    .pipe P.$count ( _, count ) -> help count
+    .pipe P.$count()
+    .pipe P.$show input
+    .on 'end', ->
+      handler null
+
+
 ############################################################################################################
 unless module.parent
   # route = '/Volumes/Storage/cnd/node_modules/timetable-data/germany-berlin-2014/trips.txt'
+  route = '/Volumes/Storage/cnd/node_modules/timetable-data/germany-berlin-2014/routes.txt'
   # route = '/Volumes/Storage/cnd/node_modules/timetable-data/germany-berlin-2014/calendar.txt'
   # route = __filename
-  route = '/Volumes/Storage/cnd/node_modules/timetable-data/germany-berlin-2014/agency.txt'
-  @read_trips route, ( error ) ->
+  # route = '/Volumes/Storage/cnd/node_modules/timetable-data/germany-berlin-2014/agency.txt'
+  @test_show_sample route, ( error ) ->
     throw error if error?
     log 'ok'
 

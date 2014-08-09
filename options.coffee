@@ -34,7 +34,9 @@ module.exports = options =
   #.........................................................................................................
   'data':
     # 'limit':              12
-    'gtfs-types':         "agency calendar_dates calendar routes stop_times stops transfers trips".split /\s+/
+    ### OBS GTFS types MUST be in correct order, as some records (like stop_times) depend on other
+    records (trips, stops) to be present in registry. ###
+    'gtfs-types':         "agency calendar_dates calendar routes transfers trips stop_times stops".split /\s+/
     'timetable-types':    "agency route station course tour".split /\s+/
     'info':               data_info
     'home':               data_home

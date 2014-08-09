@@ -174,10 +174,14 @@ $                         = P.$.bind P
       handler null
 
 #-----------------------------------------------------------------------------------------------------------
+$split_and_skip = -> P.$chain P.$split(), P.$skip_empty()
+
+#-----------------------------------------------------------------------------------------------------------
 @test_show_sample = ( route, handler ) ->
   input = P.create_readstream route
-  input.pipe P.$split()
-    .pipe P.$skip_empty()
+  # input.pipe P.$split()
+  #   .pipe P.$skip_empty()
+  input.pipe $split_and_skip()
     # .pipe P.$skip_after 2
     #.......................................................................................................
     # .pipe P.$sample 1 / 10, seed: 1

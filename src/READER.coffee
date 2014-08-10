@@ -11,7 +11,7 @@
 # TEXT                      = require 'coffeenode-text'
 TRM                       = require 'coffeenode-trm'
 rpr                       = TRM.rpr.bind TRM
-badge                     = 'TIMETABLE/timetable-from-gtfs-data'
+badge                     = 'TIMETABLE/READER'
 log                       = TRM.get_logger 'plain',     badge
 info                      = TRM.get_logger 'info',      badge
 whisper                   = TRM.get_logger 'whisper',   badge
@@ -99,7 +99,7 @@ DEV                       = options[ 'mode' ] is 'dev'
 #-----------------------------------------------------------------------------------------------------------
 @main = ( registry, handler ) ->
   # ratio = if DEV then 1 / 100 else 1
-  input = P.read_values registry[ '%gtfs' ][ 'stops' ]
+  input = P.$read_values registry[ '%gtfs' ][ 'stops' ]
   #.........................................................................................................
   input
     # .pipe P.$sample                     ratio, headers: true, seed: 5 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -113,6 +113,64 @@ DEV                       = options[ 'mode' ] is 'dev'
       info 'ok: routes'
       return handler null
 
+# #-----------------------------------------------------------------------------------------------------------
+# P.read_keys = (array) ->
+#   R           = new Stream()
+#   i           = 0
+#   paused      = false
+#   ended       = false
+#   R.readable  = true
+#   R.writable  = false
+#   # throw new Error "event-stream.read expects an array" unless Array.isArray array
+#   #.........................................................................................................
+#   R.resume = ->
+#     return paused = false if ended
+#     l = array.length
+#     R.emit 'data', array[ i++ ] while i < l and not paused and not ended
+#     if i is l and not ended
+#       ended           = true
+#       R.readable = false
+#       R.emit 'end'
+#     return
+#   #.........................................................................................................
+#   process.nextTick R.resume
+#   #.........................................................................................................
+#   R.pause = ->
+#     paused = true
+#     return null
+#   #.........................................................................................................
+#   R.destroy = ->
+#     ended = true
+#     R.emit "close"
+#     return null
+#   #.........................................................................................................
+#   return R
+
+
+# #-----------------------------------------------------------------------------------------------------------
+# @read_values = ( x ) ->
+#   keys = Object.keys x
+#   return P.as_readable ( count, handler ) ->
+#     whisper count
+#     if count < keys.length
+#       setTimeout ( -> handler null, x[ keys[ count ] ] ), 500
+#     else
+#       @emit 'end'
+
+# d =
+#   a:      'along'
+#   b:      'beta'
+#   c:      'cool'
+#   d:      'doge'
+
+
+# # input = P.read_list Object.keys d
+# #   .pipe P.$value_from_key d
+# #   .pipe P.$show()
+
+
+# input = P.$read_values d
+#   .pipe P.$show()
 
 
 

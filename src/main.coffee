@@ -26,10 +26,9 @@ options                   = require '../options'
   registry = REGISTRY.new_registry()
   GTFS_READER.main registry, ( error ) =>
     return handler error if error?
-    handler null, registry
-    # @timetable_from_gtfs_data gtfs_registry, ( error, registry ) =>
-    #   return handler error if error?
-    #   handler registry
+    READER.main registry, ( error ) =>
+      return handler error if error?
+      handler null, registry
   #.........................................................................................................
   return null
 
@@ -39,12 +38,15 @@ unless module.parent?
   @main ( error, registry ) =>
     TEXT = require 'coffeenode-text'
     throw error if error?
+    #.......................................................................................................
     for gtfs_type in options[ 'data' ][ 'gtfs-types' ]
       prefix = 'GTFS ' + ( TEXT.flush_left gtfs_type + ':', 15 )
       info prefix, ( Object.keys registry[ '%gtfs' ][ gtfs_type ] ).length
-    # for type in options[ 'data' ][ 'timetable-types' ]
-    #   prefix = '     ' + ( TEXT.flush_left      type + ':', 15 )
-    #   info prefix, ( Object.keys registry[ gtfs_type ] ).length
+    #.......................................................................................................
+    for type in options[ 'data' ][ 'timetable-types' ]
+      prefix = '     ' + ( TEXT.flush_left type + ':', 15 )
+      info prefix, ( Object.keys registry[ type ] ).length
+    #.......................................................................................................
     setImmediate -> process.exit()
 
 

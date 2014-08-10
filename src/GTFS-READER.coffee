@@ -33,7 +33,8 @@ ASYNC                     = require 'async'
 ### https://github.com/loveencounterflow/pipedreams ###
 P                         = require 'pipedreams'
 $                         = P.$.bind P
-
+#...........................................................................................................
+DEV                       = options[ 'mode' ] is 'dev'
 
 
 ############################################################################################################
@@ -118,7 +119,9 @@ $                         = P.$.bind P
 #-----------------------------------------------------------------------------------------------------------
 @$filter_routes = ( registry ) ->
   return $ ( record, handler ) =>
-    return handler null unless /^U4/.test record[ 'route_short_name' ]
+    ### TAINT non-general filter ###
+    matcher = if DEV then /^U4/ else /U/
+    return handler null unless matcher.test record[ 'route_short_name' ]
     handler null, record
 
 #-----------------------------------------------------------------------------------------------------------
@@ -162,6 +165,7 @@ $                         = P.$.bind P
 #-----------------------------------------------------------------------------------------------------------
 @$filter_calendar_dates = ( registry ) ->
   return $ ( record, handler ) =>
+    ### TAINT non-general filter ###
     return handler null unless record[ 'date' ] is '20140624'
     handler null, record
 
@@ -179,12 +183,13 @@ $                         = P.$.bind P
 @read_trips = ( registry, route, handler ) ->
   help 'read_trips'
   input       = P.create_readstream route, 'trips'
+  ratio       = if DEV then 1 / 100 else 1
   #.........................................................................................................
   input.pipe P.$split()
     .pipe P.$skip_empty()
     .pipe P.$parse_csv()
     .pipe @$filter_trips                registry
-    # .pipe P.$sample                     1 / 100, headers: true, seed: 5
+    .pipe P.$sample                     ratio, headers: true, seed: 5
     .pipe @$clean_trip_record()
     .pipe P.$delete_prefix              'trip_'
     .pipe P.$dasherize_field_names()
@@ -228,11 +233,12 @@ $                         = P.$.bind P
 #-----------------------------------------------------------------------------------------------------------
 @read_stop_times = ( registry, route, handler ) ->
   help 'read_stop_times'
-  input       = P.create_readstream route, 'stop_times'
+  input = P.create_readstream route, 'stop_times'
+  ratio = if DEV then 1 / 1e4 else 1
   #.........................................................................................................
   input.pipe P.$split()
     .pipe P.$skip_empty()
-    # .pipe P.$sample                     1 / 1e4, headers: true
+    .pipe P.$sample                     ratio, headers: true
     .pipe P.$parse_csv()
     .pipe @$filter_stop_times           registry
     .pipe @$clean_stop_times_record()
@@ -269,6 +275,7 @@ $                         = P.$.bind P
 #-----------------------------------------------------------------------------------------------------------
 @$filter_stop_times = ( registry ) ->
   return $ ( record, handler ) =>
+    return handler null, record if DEV
     return handler null unless registry[ '%gtfs' ][ 'trips' ][ record[ 'trip_id' ] ]?
     handler null, record
 
@@ -293,11 +300,12 @@ $                         = P.$.bind P
 #-----------------------------------------------------------------------------------------------------------
 @read_stops = ( registry, route, handler ) ->
   help 'read_stops'
-  input       = P.create_readstream route, 'stops'
+  input = P.create_readstream route, 'stops'
+  ratio = if DEV then 1 / 100 else 1
   #.........................................................................................................
   input.pipe P.$split()
     .pipe P.$skip_empty()
-    # .pipe P.$sample                     1 / 100, headers: true, seed: 5
+    .pipe P.$sample                     ratio, headers: true, seed: 5 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     .pipe P.$parse_csv()
     .pipe @$filter_stops                registry
     .pipe @$clean_stops_record()
@@ -325,6 +333,7 @@ $                         = P.$.bind P
   target = registry[ '%state' ][ 'gtfs-stop-ids' ]
   throw new Error "stops should be read after stop_times" unless target?
   return $ ( record, handler ) =>
+    return handler null, record if DEV
     return handler null unless target[ record[ 'stop_id' ] ]
     handler null, record
 
@@ -357,9 +366,10 @@ $                         = P.$.bind P
     ok_types  = []
     #.......................................................................................................
     for gtfs_type in options[ 'data' ][ 'gtfs-types' ]
-      # if gtfs_type in [ 'stops', ]  # <<<<<<<<<<
-      #   warn "skipping stop_times"  # <<<<<<<<<<
-      #   continue                    # <<<<<<<<<<
+      if DEV
+        if gtfs_type not in [ 'stop_times', 'stops', ]  # <<<<<<<<<<
+          warn "skipping #{gtfs_type}"  # <<<<<<<<<<
+          continue                    # <<<<<<<<<<
       route = route_by_types[ gtfs_type ]
       unless route?
         no_source.push "skipping #{source_name}/#{gtfs_type} (no source file)"

@@ -57,9 +57,10 @@ options                   = require '../options'
 #-----------------------------------------------------------------------------------------------------------
 @register = ( registry, record ) ->
   id = record[ 'id' ]
-  throw new Error """
-    unable to register record without ID:
-    #{rpr record}"""
+  unless id?
+    throw new Error """
+      unable to register record without ID:
+      #{rpr record}"""
   #.......................................................................................................
   unless ( type = record[ '~label' ] )?
     throw new Error """

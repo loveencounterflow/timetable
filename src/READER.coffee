@@ -23,13 +23,18 @@ urge                      = TRM.get_logger 'urge',      badge
 echo                      = TRM.echo.bind TRM
 rainbow                   = TRM.rainbow.bind TRM
 #...........................................................................................................
+ASYNC                     = require 'async'
+#...........................................................................................................
 REGISTRY                  = require './REGISTRY'
+COURSES                   = require './COURSES'
 P                         = require 'pipedreams'
 $                         = P.$.bind P
 #...........................................................................................................
 options                   = require '../options'
 DEV                       = options[ 'mode' ] is 'dev'
 
+#===========================================================================================================
+#
 #-----------------------------------------------------------------------------------------------------------
 @$register = ( registry ) ->
   return $ ( node, handler ) =>
@@ -38,7 +43,7 @@ DEV                       = options[ 'mode' ] is 'dev'
 
 #-----------------------------------------------------------------------------------------------------------
 ### TAINT very Berlin-specific method, shouldnt appear here ###
-@normalize_name = ( name ) ->
+@normalize_berlin_station_name = ( name ) ->
   name = name.replace /\s+\(Berlin\)(\s+Bus)?$/,      ''
   unless /^(U|S) Olympiastadion/.test name
     name = name.replace /^(U|S\+U|S)\s+/,               ''
@@ -57,14 +62,14 @@ DEV                       = options[ 'mode' ] is 'dev'
   return name
 
 #-----------------------------------------------------------------------------------------------------------
-@$normalize_name = ( key ) ->
+@$normalize_station_name = ( key ) ->
   return $ ( node, handler ) =>
     name = node[ key ]
     unless name?
       return handler new Error """
         unable to find key #{rpr key} in
         #{rpr node}"""
-    node[ key ] = @normalize_name name
+    node[ key ] = @normalize_berlin_station_name name
     handler null, node
 
 #-----------------------------------------------------------------------------------------------------------
@@ -93,84 +98,162 @@ DEV                       = options[ 'mode' ] is 'dev'
     idx          += 1
     handler null, node
 
-#-----------------------------------------------------------------------------------------------------------
-@timetable_from_gtfs_data = ( gtfs_registry, handler ) ->
 
+#===========================================================================================================
+# STATIONS
 #-----------------------------------------------------------------------------------------------------------
-@main = ( registry, handler ) ->
+@read_station_nodes = ( registry, handler ) ->
   # ratio = if DEV then 1 / 100 else 1
   input = P.$read_values registry[ '%gtfs' ][ 'stops' ]
   #.........................................................................................................
   input
     # .pipe P.$sample                     ratio, headers: true, seed: 5 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-    .pipe @$normalize_name              'name'
+    .pipe @$normalize_station_name      'name'
     .pipe @$add_n4j_system_properties   'station'
     .pipe @$add_id()
     .pipe @$remove_gtfs_fields()
     .pipe @$register                    registry
-    .pipe P.$collect_sample             input, 1, ( _, sample ) -> whisper 'stop', sample
+    .pipe P.$collect_sample             input, 1, ( _, sample ) -> whisper 'station', sample
     .on 'end', =>
-      info 'ok: routes'
       return handler null
 
-# #-----------------------------------------------------------------------------------------------------------
-# P.read_keys = (array) ->
-#   R           = new Stream()
-#   i           = 0
-#   paused      = false
-#   ended       = false
-#   R.readable  = true
-#   R.writable  = false
-#   # throw new Error "event-stream.read expects an array" unless Array.isArray array
-#   #.........................................................................................................
-#   R.resume = ->
-#     return paused = false if ended
-#     l = array.length
-#     R.emit 'data', array[ i++ ] while i < l and not paused and not ended
-#     if i is l and not ended
-#       ended           = true
-#       R.readable = false
-#       R.emit 'end'
-#     return
-#   #.........................................................................................................
-#   process.nextTick R.resume
-#   #.........................................................................................................
-#   R.pause = ->
-#     paused = true
-#     return null
-#   #.........................................................................................................
-#   R.destroy = ->
-#     ended = true
-#     R.emit "close"
-#     return null
-#   #.........................................................................................................
-#   return R
+
+#===========================================================================================================
+# ROUTES
+#-----------------------------------------------------------------------------------------------------------
+@read_route_nodes = ( registry, handler ) ->
+  input = P.$read_values registry[ '%gtfs' ][ 'routes' ]
+  #.........................................................................................................
+  input
+    .pipe @$add_n4j_system_properties   'route'
+    .pipe @$add_id()
+    .pipe @$remove_gtfs_fields()
+    .pipe @$register                    registry
+    .pipe P.$collect_sample             input, 1, ( _, sample ) -> whisper 'route', sample
+    .on 'end', =>
+      return handler null
 
 
-# #-----------------------------------------------------------------------------------------------------------
-# @read_values = ( x ) ->
-#   keys = Object.keys x
-#   return P.as_readable ( count, handler ) ->
-#     whisper count
-#     if count < keys.length
-#       setTimeout ( -> handler null, x[ keys[ count ] ] ), 500
-#     else
-#       @emit 'end'
+#===========================================================================================================
+# AGENCIES
+#-----------------------------------------------------------------------------------------------------------
+@read_agency_nodes = ( registry, handler ) ->
+  input = P.$read_values registry[ '%gtfs' ][ 'agency' ]
+  #.........................................................................................................
+  input
+    .pipe @$add_n4j_system_properties   'agency'
+    .pipe @$add_agency_id()
+    .pipe @$remove_gtfs_fields()
+    .pipe @$register                    registry
+    .pipe P.$collect_sample             input, 1, ( _, sample ) -> whisper 'agency', sample
+    .on 'end', =>
+      return handler null
 
-# d =
-#   a:      'along'
-#   b:      'beta'
-#   c:      'cool'
-#   d:      'doge'
+#-----------------------------------------------------------------------------------------------------------
+@$add_agency_id = ( registry ) ->
+  return $ ( node, handler ) ->
+    node[ 'id' ] = node[ '%gtfs-id' ].replace /[-_]+$/, ''
+    handler null, node
 
 
-# # input = P.read_list Object.keys d
-# #   .pipe P.$value_from_key d
-# #   .pipe P.$show()
+#===========================================================================================================
+# COURSES AND TOURS
+#-----------------------------------------------------------------------------------------------------------
+@read_tour_nodes = ( registry, handler ) ->
+  ### OBS implies reading courses and halts. ###
+  input = P.$read_values registry[ '%gtfs' ][ 'trips' ]
+  #.........................................................................................................
+  input
+    .pipe @$add_n4j_system_properties   'tour'
+    .pipe @$clean_trip_arr_dep()
+    .pipe @$tour_from_trip              registry
+    .pipe @$add_tour_id()
+    # .pipe @$remove_gtfs_fields()
+    .pipe @$register                    registry
+    .pipe P.$collect_sample             input, 1, ( _, sample ) -> whisper 'trip', sample
+    .on 'end', =>
+      return handler null
+
+#-----------------------------------------------------------------------------------------------------------
+@$clean_trip_arr_dep = ->
+  ### Replace the first stoptime's arrival and the last stoptime's departure time from the trip. ###
+  return $ ( node, handler ) ->
+    last_idx = node[ '%gtfs-stoptimes' ].length - 1
+    node[ '%gtfs-stoptimes' ][        0 ][ 'arr' ] = null
+    node[ '%gtfs-stoptimes' ][ last_idx ][ 'dep' ] = null
+    handler null, node
+
+#-----------------------------------------------------------------------------------------------------------
+@$tour_from_trip = ( registry ) ->
+  return $ ( node, handler ) =>
+    reltrip_info    = COURSES.reltrip_info_from_abstrip node
+    course          = COURSES.registered_course_from_reltrip_info registry, reltrip_info
+    headsign        = @normalize_berlin_station_name reltrip_info[ 'headsign' ]
+    gtfs_routes_id  = node[ '%gtfs-routes-id' ]
+    route           = registry[ '%gtfs' ][ 'routes' ][ gtfs_routes_id ]
+    route_id        = route[ 'id' ]
+    #.......................................................................................................
+    tour =
+      '~isa':       'node'
+      '~label':     'tour'
+      'course-id':      reltrip_info[ 'course-id'     ]
+      'route-id':       route_id
+      'headsign':       headsign
+      'offset.hhmmss':  reltrip_info[ 'offset.hhmmss' ]
+      'offset.s':       reltrip_info[ 'offset.s'      ]
+    #.......................................................................................................
+    handler null, tour
+
+#-----------------------------------------------------------------------------------------------------------
+@$add_tour_id = ->
+  idxs = {}
+  return $ ( node, handler ) =>
+    route_id      = node[ 'route-id' ]
+    idx           = idxs[ route_id ] = ( idxs[ route_id ]?= 0 ) + 1
+    node[ 'id' ]  = "tour/#{route_id}/#{idx}"
+    handler null, node
 
 
-# input = P.$read_values d
-#   .pipe P.$show()
-
+#===========================================================================================================
+#
+#-----------------------------------------------------------------------------------------------------------
+@main = ( registry, handler ) ->
+  t0        = 1 * new Date() # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  tasks     = []
+  no_source = []
+  no_method = []
+  ok_types  = []
+  #.......................................................................................................
+  for node_type in options[ 'data' ][ 'node-types' ]
+    #.....................................................................................................
+    method_name = "read_#{node_type}_nodes"
+    method      = @[ method_name ]
+    unless method?
+      no_method.push "no method to read nodes of type #{rpr node_type}; skipping"
+      continue
+    method = method.bind @
+    ok_types.push node_type
+    #.....................................................................................................
+    do ( method_name, method ) =>
+      tasks.push ( async_handler ) =>
+        help "#{badge}/#{method_name}"
+        method registry, ( P... ) =>
+          info "#{badge}/#{method_name}"
+          async_handler P...
+  #.......................................................................................................
+  for messages in [ no_source, no_method, ]
+    for message in messages
+      warn message
+  #.......................................................................................................
+  info "reading data for #{ok_types.length} type(s)"
+  info "  (#{ok_types.join ', '})"
+  #.........................................................................................................
+  ASYNC.series tasks, ( error ) =>
+    throw error if error?
+    t1 = 1 * new Date() # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    urge 'dt:', ( t1 - t0 ) / 1000 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    handler null, registry
+  #.........................................................................................................
+  return null
 
 

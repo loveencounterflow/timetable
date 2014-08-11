@@ -43,7 +43,7 @@ unless module.parent?
       prefix = 'GTFS ' + ( TEXT.flush_left gtfs_type + ':', 15 )
       info prefix, ( Object.keys registry[ '%gtfs' ][ gtfs_type ] ).length
     #.......................................................................................................
-    for type in options[ 'data' ][ 'timetable-types' ]
+    for type in options[ 'data' ][ 'node-types' ]
       prefix = '     ' + ( TEXT.flush_left type + ':', 15 )
       info prefix, ( Object.keys registry[ type ] ).length
     #.......................................................................................................

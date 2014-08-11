@@ -26,8 +26,8 @@ options                   = require '../options'
     '~isa':           'TIMETABLE/registry'
     '%gtfs':          {}
     '%state':         {}
-  R[ '%gtfs' ][ gtfs_type ] = {} for gtfs_type in options[ 'data' ][      'gtfs-types' ]
-  R[                 type ] = {} for      type in options[ 'data' ][ 'timetable-types' ]
+  R[ '%gtfs' ][ gtfs_type ] = {} for gtfs_type in options[ 'data' ][ 'gtfs-types' ]
+  R[                 type ] = {} for      type in options[ 'data' ][ 'node-types' ]
   return R
 
 #-----------------------------------------------------------------------------------------------------------

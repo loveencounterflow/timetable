@@ -60,7 +60,6 @@ DEV                       = options[ 'mode' ] is 'dev'
 # SPECIFIC METHODS: AGENCY
 #-----------------------------------------------------------------------------------------------------------
 @read_agency = ( registry, route, handler ) ->
-  help 'read_agency'
   input       = P.create_readstream route, 'agency'
   #.........................................................................................................
   input.pipe P.$split()
@@ -76,7 +75,6 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe @$register                    registry
     .pipe P.$collect_sample             input, 1, ( _, sample ) -> whisper 'agency', sample
     .on 'end', =>
-      info 'ok: agency'
       return handler null
   #.........................................................................................................
   return null
@@ -94,7 +92,6 @@ DEV                       = options[ 'mode' ] is 'dev'
 #-----------------------------------------------------------------------------------------------------------
 ### TAINT name clash (filesystem route vs. GTFS route) ###
 @read_routes = ( registry, route, handler ) ->
-  help 'read_routes'
   input       = P.create_readstream route, 'routes'
   #.........................................................................................................
   input.pipe P.$split()
@@ -111,7 +108,6 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe @$register                    registry
     .pipe P.$collect_sample             input, 1, ( _, sample ) -> whisper 'route', sample
     .on 'end', =>
-      info 'ok: routes'
       return handler null
   #.........................................................................................................
   return null
@@ -143,7 +139,6 @@ DEV                       = options[ 'mode' ] is 'dev'
 # SPECIFIC METHODS: CALENDAR_DATES
 #-----------------------------------------------------------------------------------------------------------
 @read_calendar_dates = ( registry, route, handler ) ->
-  help 'read_calendar_dates'
   input       = P.create_readstream route, 'calendar_dates'
   #.........................................................................................................
   input.pipe P.$split()
@@ -157,7 +152,6 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe @$register                    registry
     .pipe P.$collect_sample             input, 1, ( _, sample ) -> whisper 'service', sample
     .on 'end', =>
-      info 'ok: calendar_dates'
       return handler null
   #.........................................................................................................
   return null
@@ -181,7 +175,6 @@ DEV                       = options[ 'mode' ] is 'dev'
 # SPECIFIC METHODS: TRIPS
 #-----------------------------------------------------------------------------------------------------------
 @read_trips = ( registry, route, handler ) ->
-  help 'read_trips'
   input       = P.create_readstream route, 'trips'
   ratio       = if DEV then 1 / 100 else 1
   #.........................................................................................................
@@ -193,14 +186,14 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe @$clean_trip_record()
     .pipe P.$delete_prefix              'trip_'
     .pipe P.$dasherize_field_names()
-    .pipe P.$set                        '%gtfs-type', 'trips'
-    .pipe P.$rename                     'id',         '%gtfs-id'
-    .pipe P.$rename                     'route-id',   '%gtfs-routes-id'
-    .pipe P.$rename                     'service-id', '%gtfs-service-id'
+    .pipe P.$set                        '%gtfs-type',       'trips'
+    .pipe P.$set                        '%gtfs-stoptimes',  null
+    .pipe P.$rename                     'id',               '%gtfs-id'
+    .pipe P.$rename                     'route-id',         '%gtfs-routes-id'
+    .pipe P.$rename                     'service-id',       '%gtfs-service-id'
     .pipe @$register                    registry
     .pipe P.$collect_sample             input, 1, ( _, sample ) -> whisper 'trip', sample
     .on 'end', =>
-      info 'ok: trips'
       return handler null
   #.........................................................................................................
   return null
@@ -232,13 +225,12 @@ DEV                       = options[ 'mode' ] is 'dev'
 # SPECIFIC METHODS: STOPTIMES
 #-----------------------------------------------------------------------------------------------------------
 @read_stop_times = ( registry, route, handler ) ->
-  help 'read_stop_times'
   input = P.create_readstream route, 'stop_times'
   ratio = if DEV then 1 / 1e4 else 1
   #.........................................................................................................
   input.pipe P.$split()
     .pipe P.$skip_empty()
-    .pipe P.$sample                     ratio, headers: true
+    # .pipe P.$sample                     ratio, headers: true
     .pipe P.$parse_csv()
     .pipe @$filter_stop_times           registry
     .pipe @$clean_stop_times_record()
@@ -249,11 +241,11 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe P.$rename                     'arrival-time',   'arr'
     .pipe P.$rename                     'departure-time', 'dep'
     .pipe @$add_stoptimes_gtfsid()
+    .pipe @$add_stoptime_to_trip        registry
     .pipe @$register                    registry
     .pipe @$register_stop_id            registry
     .pipe P.$collect_sample             input, 1, ( _, sample ) -> whisper 'stop_time', sample
     .on 'end', =>
-      info 'ok: stoptimes'
       return handler null
   #.........................................................................................................
   return null
@@ -275,7 +267,6 @@ DEV                       = options[ 'mode' ] is 'dev'
 #-----------------------------------------------------------------------------------------------------------
 @$filter_stop_times = ( registry ) ->
   return $ ( record, handler ) =>
-    return handler null, record if DEV
     return handler null unless registry[ '%gtfs' ][ 'trips' ][ record[ 'trip_id' ] ]?
     handler null, record
 
@@ -285,6 +276,20 @@ DEV                       = options[ 'mode' ] is 'dev'
   return $ ( record, handler ) =>
     record[ '%gtfs-id' ]  = "#{idx}"
     idx += 1
+    handler null, record
+
+#-----------------------------------------------------------------------------------------------------------
+@$add_stoptime_to_trip = ( registry ) ->
+  return $ ( record, handler ) =>
+    gtfs_trip_id  = record[ '%gtfs-trip-id' ]
+    trip_record   = registry[ '%gtfs' ][ 'trips' ][ gtfs_trip_id ]
+    unless trip_record?
+      debug registry[ '%gtfs' ][ 'trips' ]
+      return handler new Error "unable to locate trip #{rpr gtfs_trip_id} for stoptime: #{rpr record}"
+    target        = trip_record[ '%gtfs-stoptimes' ]?= []
+    idx           = ( parseInt record[ 'stop-sequence' ], 10 ) - 1
+    return handler new Error "duplicate stoptime #{rpr record} in trip #{rpr trip_record}" if target[ idx ]?
+    target[ idx ] = record
     handler null, record
 
 #-----------------------------------------------------------------------------------------------------------
@@ -299,13 +304,10 @@ DEV                       = options[ 'mode' ] is 'dev'
 # SPECIFIC METHODS: STOPS
 #-----------------------------------------------------------------------------------------------------------
 @read_stops = ( registry, route, handler ) ->
-  help 'read_stops'
   input = P.create_readstream route, 'stops'
-  ratio = if DEV then 1 / 100 else 1
   #.........................................................................................................
   input.pipe P.$split()
     .pipe P.$skip_empty()
-    .pipe P.$sample                     ratio, headers: true, seed: 5 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     .pipe P.$parse_csv()
     .pipe @$filter_stops                registry
     .pipe @$clean_stops_record()
@@ -317,7 +319,6 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe @$register                    registry
     .pipe P.$collect_sample             input, 1, ( _, sample ) -> whisper 'stop', sample
     .on 'end', =>
-      info 'ok: stops'
       @_clear_stops_id_cache registry
       return handler null
   #.........................................................................................................
@@ -333,7 +334,6 @@ DEV                       = options[ 'mode' ] is 'dev'
   target = registry[ '%state' ][ 'gtfs-stop-ids' ]
   throw new Error "stops should be read after stop_times" unless target?
   return $ ( record, handler ) =>
-    return handler null, record if DEV
     return handler null unless target[ record[ 'stop_id' ] ]
     handler null, record
 
@@ -366,10 +366,10 @@ DEV                       = options[ 'mode' ] is 'dev'
     ok_types  = []
     #.......................................................................................................
     for gtfs_type in options[ 'data' ][ 'gtfs-types' ]
-      if DEV
-        if gtfs_type not in [ 'stop_times', 'stops', ]  # <<<<<<<<<<
-          warn "skipping #{gtfs_type}"  # <<<<<<<<<<
-          continue                    # <<<<<<<<<<
+      # if DEV
+      #   if gtfs_type not in [ 'stop_times', 'stops', 'routes', 'agency', ]  # <<<<<<<<<<
+      #     warn "skipping #{gtfs_type}"  # <<<<<<<<<<
+      #     continue                    # <<<<<<<<<<
       route = route_by_types[ gtfs_type ]
       unless route?
         no_source.push "skipping #{source_name}/#{gtfs_type} (no source file)"
@@ -384,8 +384,12 @@ DEV                       = options[ 'mode' ] is 'dev'
       method = method.bind @
       ok_types.push gtfs_type
       #.....................................................................................................
-      do ( method, route ) =>
-        tasks.push ( async_handler ) => method registry, route, async_handler
+      do ( method_name, method, route ) =>
+        tasks.push ( async_handler ) =>
+          help "#{badge}/#{method_name}"
+          method registry, route, ( P... ) =>
+            info "#{badge}/#{method_name}"
+            async_handler P...
     #.......................................................................................................
     for messages in [ no_source, no_method, ]
       for message in messages
@@ -394,7 +398,6 @@ DEV                       = options[ 'mode' ] is 'dev'
     info "reading data for #{ok_types.length} type(s)"
     info "  (#{ok_types.join ', '})"
   #.........................................................................................................
-  limit = options[ 'stream-transform' ]?[ 'parallel' ] ? 1
   ASYNC.series tasks, ( error ) =>
     throw error if error?
     t1 = 1 * new Date() # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

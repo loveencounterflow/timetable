@@ -20,6 +20,9 @@ rainbow                   = TRM.rainbow.bind TRM
 #...........................................................................................................
 options                   = require '../options'
 new_db                    = require 'level'
+#...........................................................................................................
+P                         = require 'pipedreams'
+$                         = P.$.bind P
 
 
 #-----------------------------------------------------------------------------------------------------------
@@ -42,13 +45,29 @@ test_folder_exists = ( route ) ->
   return [ folder_exists, registry, ]
 
 #-----------------------------------------------------------------------------------------------------------
+@close = ( registry, handler ) ->
+  registry.close ( error ) =>
+    help 'registry closed'
+    handler error
+
+#-----------------------------------------------------------------------------------------------------------
+@flush = ( registry, handler ) ->
+  registry.close ( error ) =>
+    return handler error if error?
+    registry.open ( error ) =>
+      help 'registry flushed'
+      handler error, registry
+
+#-----------------------------------------------------------------------------------------------------------
 @register = ( registry, record, handler ) ->
-  gtfs_id = record[ 'id' ]
-  unless gtfs_id?
+  id = record[ 'id' ]
+  unless id?
     throw new Error """
-      unable to register record without GTFS ID:
+      unable to register record without ID:
       #{rpr record}"""
-  registry.put gtfs_id, record, ( error ) =>
+  ### Records whose only attribute is the ID field are replaced by `true`: ###
+  value = if ( Object.keys record ).length is 1 then true else record
+  registry.put id, value, ( error ) =>
     return handler error if error?
     handler null, record
 

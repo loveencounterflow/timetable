@@ -28,18 +28,19 @@ options                   = require '../options'
 @show_db = ( db, handler ) ->
   P = require 'pipedreams'
   $ = P.$.bind P
-  # options =
-  #   gt:     'a'
-  #   lt:     'z'
+  query =
+    gte:     'gtfs/stops/'
+    lte:     'gtfs/stops/\xff'
   help 'show registry'
   count = 0
-  # input = ( db.createReadStream options[ 'levelup' ][ 'new' ] )
-  input = ( db.createReadStream() )
+  # input = ( db.createReadStream query[ 'levelup' ][ 'new' ] )
+  input = ( db.createReadStream query )
     # .pipe P.$show()
     .pipe $ ( record, handler ) ->
       count += 1
       handler null, record
     .pipe P.$on_end ->
+      help query
       help count, "records in DB"
       return handler null, db
 
@@ -54,17 +55,16 @@ options                   = require '../options'
     help "DB already exists"
     help "skipping GTFS_READER.main()"
   else
-    tasks.push ( async_handler ) -> GTFS_READER.main registry, async_handler
+    tasks.push ( async_handler ) ->
+      GTFS_READER.main registry, async_handler
   #.........................................................................................................
-  tasks.push ( async_handler ) -> READER.main registry, async_handler
+  tasks.push ( async_handler ) -> REGISTRY.flush registry, async_handler
+  # tasks.push ( async_handler ) -> READER.main registry, async_handler
+  # tasks.push ( async_handler ) -> REGISTRY.flush registry, async_handler
   #.........................................................................................................
   ASYNC.series tasks, ( error ) ->
     return handler error if error?
-    registry.close =>
-      help 'registry closed'
-      registry = REGISTRY.new_registry()
-      # @show_db registry, handler
-      handler null, registry
+    handler null, registry
   #.........................................................................................................
   return null
 
@@ -72,18 +72,10 @@ options                   = require '../options'
 ############################################################################################################
 unless module.parent?
   @main ( error, registry ) =>
-    TEXT = require 'coffeenode-text'
     throw error if error?
-    help 'ok'
-    # #.......................................................................................................
-    # for gtfs_type in options[ 'data' ][ 'gtfs-types' ]
-    #   prefix = 'GTFS ' + ( TEXT.flush_left gtfs_type + ':', 15 )
-    #   info prefix, ( Object.keys registry[ '%gtfs' ][ gtfs_type ] ).length
-    # #.......................................................................................................
-    # for type in options[ 'data' ][ 'node-types' ]
-    #   prefix = '     ' + ( TEXT.flush_left type + ':', 15 )
-    #   info prefix, ( Object.keys registry[ type ] ).length
-    # #.......................................................................................................
-    # setImmediate -> process.exit()
+    @show_db registry, ( error ) ->
+      throw error if error?
+      help 'ok'
+
 
 

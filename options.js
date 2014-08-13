@@ -27,6 +27,7 @@
   }
 
   module.exports = options = {
+    'mode': 'dev',
     'parser': {
       'delimiter': ',',
       'skip_empty_lines': true

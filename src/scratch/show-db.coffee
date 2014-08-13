@@ -30,22 +30,29 @@ options                   = require '../../options'
   #   gt:     'a'
   #   lt:     'z'
   help 'show registry'
+  seen  = {}
   count = 0
-  db_options =
-    'gte':         'gtfs/agency'
-    'lte':         'gtfs/agency/\xff'
+  query =
+    'gte':         '%|gtfs'
+    'lte':         '%|gtfs\xff'
     # 'gte':          'gtfs/stops'
     # 'lte':          'gtfs/stops/\xff'
     'keys':         yes
     'values':       no
   # input = ( db.createReadStream options[ 'levelup' ][ 'new' ] )
-  whisper db_options
-  input = ( db.createReadStream db_options )
-    .pipe P.$show()
+  input = ( db.createReadStream query )
     .pipe $ ( record, handler ) ->
       count += 1
       handler null, record
+    .pipe $ ( record, handler ) ->
+      [ _, gtfs_type, gtfs_ref_type, gtfs_ref_id, gtfs_id ] = record.split '|'
+      key = gtfs_type + '|' + gtfs_ref_type
+      return handler() if seen[ key ]?
+      seen[ key ] = 1
+      handler null, record
+    .pipe P.$show()
     .pipe P.$on_end ->
+      help query
       help count, "records in DB"
       return handler null, db
 

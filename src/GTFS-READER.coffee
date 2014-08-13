@@ -42,8 +42,8 @@ DEV                       = options[ 'mode' ] is 'dev'
 #-----------------------------------------------------------------------------------------------------------
 @$set_id_from_gtfs_id = ->
   return $ ( record, handler ) =>
-    gtfs_id         = record[ '%gtfs-id'  ]
-    gtfs_type       = record[ '%gtfs-type'    ]
+    gtfs_id         = record[ 'gtfs-id'  ]
+    gtfs_type       = record[ 'gtfs-type'    ]
     return handler new Error "unable to register record without GTFS ID: #{rpr record}"   unless gtfs_id?
     return handler new Error "unable to register record without GTFS type: #{rpr record}" unless gtfs_type?
     record[ 'id' ]  = "gtfs/#{gtfs_type}/#{gtfs_id}"
@@ -56,20 +56,28 @@ DEV                       = options[ 'mode' ] is 'dev'
     record[ 'lon' ] = parseFloat record[ 'lon' ]
     handler null, record
 
-# @$_XXX_save   = ( db_route ) ->
-#   levelup     = require 'level'
-#   db_route    = '/tmp/timetable-index.leveldb'
-#   db_options  =
-#     valueEncoding:  'json'
-#   db        = levelup db_route
-#   return $ ( record, handler ) =>
-#     # id      = record[ 'id' ]
-#     gtfs_id = record[ '%gtfs-id' ]
-#     # db.put id, record, ( error ) ->
-#     #   throw error if error?
-#     db.put gtfs_id, record, ( error ) ->
-#       throw error if error?
-#       handler null, record
+#-----------------------------------------------------------------------------------------------------------
+@$_XXXX_add_id_indexes = ->
+  idx = 0
+  on_data = ( record ) ->
+    gtfs_type = "gtfs/#{record[ 'gtfs-type' ]}"
+    gtfs_id   = record[ 'id' ]
+    #.......................................................................................................
+    for name, gtfs_ref_id of record
+      match = name.match /^gtfs-(.+?)-id$/
+      continue unless match?
+      [ _, gtfs_ref_type ] = match
+      gtfs_ref_type = "gtfs/#{gtfs_ref_type}"
+      gtfs_ref_id   = "#{gtfs_ref_type}/#{gtfs_ref_id}"
+      index_record  =
+        'id':     "%|#{gtfs_type}|#{gtfs_ref_type}|#{gtfs_ref_id}|#{gtfs_id}"
+      @emit 'data', index_record
+    #.......................................................................................................
+    @emit 'data', record
+    # @emit 'data', trip_index_record
+    # debug trip_index_record
+    idx += 1
+  return P.through on_data, null
 
 
 ############################################################################################################
@@ -87,8 +95,8 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe P.$parse_csv()
     .pipe @$clean_agency_record()
     .pipe P.$delete_prefix              'agency_'
-    .pipe P.$set                        '%gtfs-type', 'agency'
-    .pipe P.$rename                     'id', '%gtfs-id'
+    .pipe P.$set                        'gtfs-type', 'agency'
+    .pipe P.$rename                     'id', 'gtfs-id'
     .pipe @$set_id_from_gtfs_id()
     .pipe @$clean_agency_record()
     .pipe P.$dasherize_field_names()
@@ -117,27 +125,19 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe P.$skip_empty()
     .pipe P.$sample                     1 / 10, headers: true, seed: 5
     .pipe P.$parse_csv()
-    # .pipe @$filter_routes               registry
     .pipe @$clean_routes_record()
     .pipe P.$dasherize_field_names()
-    .pipe P.$set                        '%gtfs-type',       'routes'
-    .pipe P.$rename                     'route-id',         '%gtfs-id'
-    .pipe P.$rename                     'agency-id',        '%gtfs-agency-id'
+    .pipe P.$set                        'gtfs-type',       'routes'
+    .pipe P.$rename                     'route-id',         'gtfs-id'
+    .pipe P.$rename                     'agency-id',        'gtfs-agency-id'
     .pipe P.$rename                     'route-short-name', 'name'
     .pipe @$set_id_from_gtfs_id()
+    .pipe @$_XXXX_add_id_indexes()
     .pipe REGISTRY.$register            registry
     .pipe P.$collect_sample             1, ( _, sample ) -> whisper 'route', sample
     .pipe P.$on_end                     -> handler null
   #.........................................................................................................
   return null
-
-# #-----------------------------------------------------------------------------------------------------------
-# @$filter_routes = ( registry ) ->
-#   return $ ( record, handler ) =>
-#     ### TAINT non-general filter ###
-#     matcher = if DEV then /^U4/ else /U/
-#     return handler null unless matcher.test record[ 'route_short_name' ]
-#     handler null, record
 
 #-----------------------------------------------------------------------------------------------------------
 @$clean_routes_record = ->
@@ -163,24 +163,16 @@ DEV                       = options[ 'mode' ] is 'dev'
   input.pipe P.$split()
     .pipe P.$skip_empty()
     .pipe P.$parse_csv()
-    # .pipe @$filter_calendar_dates       registry
     .pipe P.$sample                     1 / 100, headers: true, seed: 5
     .pipe @$clean_calendar_date_record()
-    .pipe P.$set                        '%gtfs-type', 'calendar_dates'
-    .pipe P.$rename                     'service_id', '%gtfs-id'
+    .pipe P.$set                        'gtfs-type', 'calendar_dates'
+    .pipe P.$rename                     'service_id', 'gtfs-id'
     .pipe @$set_id_from_gtfs_id()
     .pipe REGISTRY.$register            registry
     .pipe P.$collect_sample             1, ( _, sample ) -> whisper 'service', sample
     .pipe P.$on_end                     -> handler null
   #.........................................................................................................
   return null
-
-# #-----------------------------------------------------------------------------------------------------------
-# @$filter_calendar_dates = ( registry ) ->
-#   return $ ( record, handler ) =>
-#     ### TAINT non-general filter ###
-#     return handler null unless record[ 'date' ] is '20140624'
-#     handler null, record
 
 #-----------------------------------------------------------------------------------------------------------
 @$clean_calendar_date_record = ->
@@ -200,31 +192,22 @@ DEV                       = options[ 'mode' ] is 'dev'
   input.pipe P.$split()
     .pipe P.$skip_empty()
     .pipe P.$parse_csv()
-    # .pipe @$filter_trips                registry
     .pipe P.$sample                     ratio, headers: true, seed: 5
     .pipe @$clean_trip_record()
     .pipe P.$delete_prefix              'trip_'
     .pipe P.$dasherize_field_names()
-    .pipe P.$set                        '%gtfs-type',       'trips'
-    .pipe P.$set                        '%gtfs-stoptimes',  null
-    .pipe P.$rename                     'id',               '%gtfs-id'
-    .pipe P.$rename                     'route-id',         '%gtfs-routes-id'
-    .pipe P.$rename                     'service-id',       '%gtfs-service-id'
+    .pipe P.$set                        'gtfs-type',       'trips'
+    # .pipe P.$set                        'gtfs-stoptimes',  null
+    .pipe P.$rename                     'id',               'gtfs-id'
+    .pipe P.$rename                     'route-id',         'gtfs-routes-id'
+    .pipe P.$rename                     'service-id',       'gtfs-service-id'
     .pipe @$set_id_from_gtfs_id()
+    .pipe @$_XXXX_add_id_indexes()
     .pipe REGISTRY.$register            registry
     .pipe P.$collect_sample             1, ( _, sample ) -> whisper 'trip', sample
     .pipe P.$on_end                     -> handler null
   #.........................................................................................................
   return null
-
-# #-----------------------------------------------------------------------------------------------------------
-# @$filter_trips = ( registry ) ->
-#   return $ ( record, handler ) =>
-#     # return handler null unless registry[ '%gtfs' ][ 'trips'           ][ record[ 'trip_id'    ] ]?
-#     return handler null unless registry[ '%gtfs' ][ 'routes'          ][ record[ 'route_id'   ] ]?
-#     return handler null unless registry[ '%gtfs' ][ 'calendar_dates'  ][ record[ 'service_id' ] ]?
-#     handler null, record
-
 
 #-----------------------------------------------------------------------------------------------------------
 @$clean_trip_record = ->
@@ -251,21 +234,22 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe P.$skip_empty()
     .pipe P.$sample                     ratio, headers: true
     .pipe P.$parse_csv()
-    # .pipe @$filter_stop_times           registry
     .pipe @$clean_stop_times_record()
-    .pipe P.$set                        '%gtfs-type', 'stop_times'
+    .pipe P.$set                        'gtfs-type', 'stop_times'
     .pipe P.$dasherize_field_names()
-    .pipe P.$rename                     'trip-id',        '%gtfs-trip-id'
-    .pipe P.$rename                     'stop-id',        '%gtfs-stop-id'
+    .pipe P.$rename                     'trip-id',        'gtfs-trips-id'
+    .pipe P.$rename                     'stop-id',        'gtfs-stops-id'
     .pipe P.$rename                     'arrival-time',   'arr'
     .pipe P.$rename                     'departure-time', 'dep'
     .pipe @$add_stoptimes_gtfs_id()
     .pipe @$set_id_from_gtfs_id()
     # .pipe @$add_stoptime_to_trip        registry # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    .pipe @$_XXXX_add_id_indexes()
+    # .pipe @$_XXXX_add_stop_times_index()
     .pipe REGISTRY.$register            registry
     # .pipe @$register_stop_id            registry
     # .pipe @$_XXX_save() # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-    .pipe P.$collect_sample             1, ( _, sample ) -> whisper 'stop_time', sample
+    .pipe P.$collect_sample             5, ( _, sample ) -> whisper 'stop_time', sample
     .pipe P.$on_end                     -> handler null
   #.........................................................................................................
   return null
@@ -284,40 +268,28 @@ DEV                       = options[ 'mode' ] is 'dev'
     delete record[ 'shape_dist_traveled' ]
     handler null, record
 
-# #-----------------------------------------------------------------------------------------------------------
-# @$filter_stop_times = ( registry ) ->
-#   return $ ( record, handler ) =>
-#     return handler null unless registry[ '%gtfs' ][ 'trips' ][ record[ 'trip_id' ] ]?
-#     handler null, record
-
 #-----------------------------------------------------------------------------------------------------------
 @$add_stoptimes_gtfs_id = ->
   idx = 0
   return $ ( record, handler ) =>
-    record[ '%gtfs-id' ] = "#{idx}"
+    record[ 'gtfs-id' ] = "#{idx}"
     idx += 1
     handler null, record
 
 # #-----------------------------------------------------------------------------------------------------------
-# @$add_stoptime_to_trip = ( registry ) ->
-#   return $ ( record, handler ) =>
-#     gtfs_trip_id  = record[ '%gtfs-trip-id' ]
-#     trip_record   = registry[ '%gtfs' ][ 'trips' ][ gtfs_trip_id ]
-#     unless trip_record?
-#       debug registry[ '%gtfs' ][ 'trips' ]
-#       return handler new Error "unable to locate trip #{rpr gtfs_trip_id} for stoptime: #{rpr record}"
-#     target        = trip_record[ '%gtfs-stoptimes' ]?= []
-#     idx           = ( parseInt record[ 'stop-sequence' ], 10 ) - 1
-#     return handler new Error "duplicate stoptime #{rpr record} in trip #{rpr trip_record}" if target[ idx ]?
-#     target[ idx ] = record
-#     handler null, record
-
-# #-----------------------------------------------------------------------------------------------------------
-# @$register_stop_id = ( registry ) ->
-#   target = registry[ '%state' ][ 'gtfs-stop-ids' ]?= {}
-#   return $ ( record, handler ) =>
-#     target[ record[ '%gtfs-stop-id' ] ] = 1
-#     handler null, record
+# @$_XXXX_add_stop_times_index = ->
+#   idx = 0
+#   on_data = ( record ) ->
+#     gtfs_stop_times_id  = record[ 'id' ]
+#     gtfs_trip_id        = record[ 'gtfs-trip-id' ]
+#     trip_index_record   =
+#       'id':     "gtfs/stop_times:_<-gtfs/trips:#{gtfs_trip_id}/#{idx}"
+#       '_':      gtfs_stop_times_id
+#     @emit 'data', record
+#     @emit 'data', trip_index_record
+#     # debug trip_index_record
+#     idx += 1
+#   return P.through on_data, null
 
 
 #===========================================================================================================
@@ -329,12 +301,11 @@ DEV                       = options[ 'mode' ] is 'dev'
   input.pipe P.$split()
     .pipe P.$skip_empty()
     .pipe P.$parse_csv()
-    # .pipe @$filter_stops                registry
     .pipe @$clean_stops_record()
     .pipe P.$delete_prefix              'stop_'
-    .pipe P.$set                        '%gtfs-type', 'stops'
-    # .pipe P.$copy                       'name', '%gtfs-name'
-    .pipe P.$rename                     'id', '%gtfs-id'
+    .pipe P.$set                        'gtfs-type', 'stops'
+    # .pipe P.$copy                       'name', 'gtfs-name'
+    .pipe P.$rename                     'id', 'gtfs-id'
     .pipe @$set_id_from_gtfs_id()
     .pipe @$convert_latlon()
     .pipe REGISTRY.$register            registry
@@ -342,19 +313,6 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe P.$on_end                     -> handler null
   #.........................................................................................................
   return null
-
-# #-----------------------------------------------------------------------------------------------------------
-# @_clear_stops_id_cache = ( registry ) ->
-#   delete registry[ '%state' ][ 'gtfs-stop-ids' ]
-#   return null
-
-# #-----------------------------------------------------------------------------------------------------------
-# @$filter_stops = ( registry ) ->
-#   target = registry[ '%state' ][ 'gtfs-stop-ids' ]
-#   throw new Error "stops should be read after stop_times" unless target?
-#   return $ ( record, handler ) =>
-#     return handler null unless target[ record[ 'stop_id' ] ]
-#     handler null, record
 
 #-----------------------------------------------------------------------------------------------------------
 @$clean_stops_record = ->

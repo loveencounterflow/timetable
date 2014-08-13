@@ -33,14 +33,9 @@ $                         = P.$.bind P
 options                   = require '../options'
 DEV                       = options[ 'mode' ] is 'dev'
 
+
 #===========================================================================================================
 #
-#-----------------------------------------------------------------------------------------------------------
-@$register = ( registry ) ->
-  return $ ( node, handler ) =>
-    REGISTRY.register registry, node
-    handler null, node
-
 #-----------------------------------------------------------------------------------------------------------
 ### TAINT very Berlin-specific method, shouldnt appear here ###
 @normalize_berlin_station_name = ( name ) ->
@@ -104,7 +99,7 @@ DEV                       = options[ 'mode' ] is 'dev'
 #-----------------------------------------------------------------------------------------------------------
 @read_station_nodes = ( registry, handler ) ->
   # ratio = if DEV then 1 / 100 else 1
-  input = P.$read_values registry[ '%gtfs' ][ 'stops' ]
+  input = registry.createReadStream keys: no, gte: 'gtfs/stops', lte: 'gtfs/stops\xff'
   #.........................................................................................................
   input
     # .pipe P.$sample                     ratio, headers: true, seed: 5 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
@@ -112,47 +107,47 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe @$add_n4j_system_properties   'station'
     .pipe @$add_id()
     .pipe @$remove_gtfs_fields()
-    .pipe @$register                    registry
-    .pipe P.$collect_sample             input, 1, ( _, sample ) -> whisper 'station', sample
-    .on 'end', =>
-      return handler null
+    # .pipe REGISTRY.$register            registry
+    .pipe P.$show()
+    .pipe P.$collect_sample             1, ( _, sample ) -> whisper 'station', sample
+    .pipe P.$on_end                     -> handler null
 
 
 #===========================================================================================================
 # ROUTES
 #-----------------------------------------------------------------------------------------------------------
 @read_route_nodes = ( registry, handler ) ->
-  input = P.$read_values registry[ '%gtfs' ][ 'routes' ]
+  input = registry.createReadStream keys: no, gte: 'gtfs/routes', lte: 'gtfs/routes\xff'
   #.........................................................................................................
   input
     .pipe @$add_n4j_system_properties   'route'
     .pipe @$add_id()
     .pipe @$remove_gtfs_fields()
-    .pipe @$register                    registry
-    .pipe P.$collect_sample             input, 1, ( _, sample ) -> whisper 'route', sample
-    .on 'end', =>
-      return handler null
+    .pipe REGISTRY.$register            registry
+    .pipe P.$collect_sample             1, ( _, sample ) -> whisper 'route', sample
+    .pipe P.$on_end                     -> handler null
 
 
 #===========================================================================================================
 # AGENCIES
 #-----------------------------------------------------------------------------------------------------------
 @read_agency_nodes = ( registry, handler ) ->
-  input = P.$read_values registry[ '%gtfs' ][ 'agency' ]
+  input = registry.createReadStream keys: no, gte: 'gtfs/agency', lte: 'gtfs/agency\xff'
   #.........................................................................................................
   input
     .pipe @$add_n4j_system_properties   'agency'
     .pipe @$add_agency_id()
     .pipe @$remove_gtfs_fields()
-    .pipe @$register                    registry
-    .pipe P.$collect_sample             input, 1, ( _, sample ) -> whisper 'agency', sample
-    .on 'end', =>
-      return handler null
+    # .pipe REGISTRY.$register            registry
+    .pipe P.$show()
+    .pipe P.$collect_sample             1, ( _, sample ) -> whisper 'agency', sample
+    .pipe P.$on_end                     -> handler null
 
 #-----------------------------------------------------------------------------------------------------------
 @$add_agency_id = ( registry ) ->
   return $ ( node, handler ) ->
-    node[ 'id' ] = node[ '%gtfs-id' ].replace /[-_]+$/, ''
+    debug '©0w3', node
+    node[ 'id' ] = node[ 'id' ].replace /^gtfs\/([^-_]+)[-_]+$/, '$1'
     handler null, node
 
 
@@ -161,7 +156,7 @@ DEV                       = options[ 'mode' ] is 'dev'
 #-----------------------------------------------------------------------------------------------------------
 @read_tour_nodes = ( registry, handler ) ->
   ### OBS implies reading courses and halts. ###
-  input = P.$read_values registry[ '%gtfs' ][ 'trips' ]
+  input = registry.createReadStream keys: no, gte: 'gtfs/trips', lte: 'gtfs/trips\xff'
   #.........................................................................................................
   input
     .pipe @$add_n4j_system_properties   'tour'
@@ -169,10 +164,9 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe @$tour_from_trip              registry
     .pipe @$add_tour_id()
     # .pipe @$remove_gtfs_fields()
-    .pipe @$register                    registry
-    .pipe P.$collect_sample             input, 1, ( _, sample ) -> whisper 'trip', sample
-    .on 'end', =>
-      return handler null
+    .pipe REGISTRY.$register            registry
+    .pipe P.$collect_sample             1, ( _, sample ) -> whisper 'trip', sample
+    .pipe P.$on_end                     -> handler null
 
 #-----------------------------------------------------------------------------------------------------------
 @$clean_trip_arr_dep = ->
@@ -218,6 +212,9 @@ DEV                       = options[ 'mode' ] is 'dev'
 #
 #-----------------------------------------------------------------------------------------------------------
 @main = ( registry, handler ) ->
+  # debug '©7u9', 'skipping'      # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  # return handler null, registry # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
   t0        = 1 * new Date() # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   tasks     = []
   no_source = []
@@ -225,6 +222,9 @@ DEV                       = options[ 'mode' ] is 'dev'
   ok_types  = []
   #.......................................................................................................
   for node_type in options[ 'data' ][ 'node-types' ]
+    if node_type not in [ 'agency', ]  # <<<<<<<<<<
+      warn "skipping #{node_type}"  # <<<<<<<<<<
+      continue                    #
     #.....................................................................................................
     method_name = "read_#{node_type}_nodes"
     method      = @[ method_name ]

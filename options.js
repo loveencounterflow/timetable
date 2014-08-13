@@ -27,10 +27,16 @@
   }
 
   module.exports = options = {
-    'mode': 'dev',
     'parser': {
       'delimiter': ',',
       'skip_empty_lines': true
+    },
+    'levelup': {
+      'route': njs_path.join(__dirname, './gtfs-db'),
+      'new': {
+        'keyEncoding': 'utf-8',
+        'valueEncoding': 'json'
+      }
     },
     'data': {
 

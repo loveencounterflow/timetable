@@ -27,7 +27,6 @@
   }
 
   module.exports = options = {
-    'mode': 'dev',
     'parser': {
       'delimiter': ',',
       'skip_empty_lines': true
@@ -50,5 +49,40 @@
       'home': data_home
     }
   };
+
+  ({
+    'gtfs-name': 'agency',
+    'singular': 'agency',
+    'plural': 'agencies',
+    'x': 'gag',
+    'gtfs-name': 'calendar_dates',
+    'singular': 'date',
+    'plural': 'dates',
+    'x': 'gda',
+    'gtfs-name': 'calendar',
+    'singular': 'calendar',
+    'plural': 'calendars',
+    'x': 'gca',
+    'gtfs-name': 'routes',
+    'singular': 'route',
+    'plural': 'routes',
+    'x': 'grt',
+    'gtfs-name': 'transfers',
+    'singular': 'transfer',
+    'plural': 'transfers',
+    'x': 'gtn',
+    'gtfs-name': 'trips',
+    'singular': 'trip',
+    'plural': 'trips',
+    'x': 'gtp',
+    'gtfs-name': 'stop_times',
+    'singular': 'stoptime',
+    'plural': 'stoptimes',
+    'x': 'gsm',
+    'gtfs-name': 'stops',
+    'singular': 'stop',
+    'plural': 'stops',
+    'x': 'gst'
+  });
 
 }).call(this);

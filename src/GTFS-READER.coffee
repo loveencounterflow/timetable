@@ -1,5 +1,132 @@
 
 
+
+"""
+
+
+
+
+g/sttm^828812
+g/trip^32565
+g/route^811
+
+
+%|g/route|name:foobar|^811
+
+
+%|gtfs/stoptime|gtfs/trip^123|^556|gtfs/service^33421
+
+  %|gtfs/stoptime|gtfs/trip^123|^556
++ %|gtfs/trip|gtfs/route^8877|^123
+------------------------------------------------------
+= %|gtfs/stoptime|gtfs/route^8877
+
+
+= %|gtfs/stoptime|gtfs/trip^123|^556|gtfs/route^8877
+
+
+############################################################################################################
+
+gtfs:
+  stoptime:
+    id:           gtfs/stoptime/^876
+    stop-id:      gtfs/stop/^123
+    trip-id:      gtfs/trip/^456
+    ...
+
+  stop:
+    id:           gtfs/stop/^123
+    name:         Bayerischer+Platz
+    ...
+
+  trip:
+    id:           gtfs/trip/^456
+    route-id:     gtfs/route/^777
+    service-id:   gtfs/service/^888
+
+
+gtfs/stoptime/^876
+gtfs/stoptime/^876/stop-id:gtfs/stop/^123
+gtfs/stoptime/^876/trip-id:gtfs/trip/^456
+gtfs/stop/^123
+gtfs/stop/^123/name:Bayerischer+Platz
+gtfs/trip/^456
+
+
+############################################################################################################
+
+gtfs:
+  stoptime:
+    ^:                gtfs/stoptime/^876
+    gtfs/stop/^:      gtfs/stop/^123
+    gtfs/trip/^:      gtfs/trip/^456
+    ...
+    arr:              15:38
+    dep:              15:38
+
+
+  stop:
+    ^:                gtfs/stop/^123
+    name:             Bayerischer+Platz
+    ...
+
+  trip:
+    ^:                gtfs/trip/^456
+    gtfs/route/^:     gtfs/route/^777
+    gtfs/service/^:   gtfs/service/^888
+
+  route:
+    ^:                gtfs/route/^777
+    name:             U4
+
+# REALM/TYPE/^IDN
+REALM/TYPE/^IDN|NAME:VALUE
+REALM₀/TYPE₀/^IDN₀|>REALM₁/TYPE₁/^IDN₁
+
+gtfs/route/^777
+gtfs/route/^777|name:U4
+gtfs/stop/^123
+gtfs/stop/^123|=name:Bayerischer+Platz
+gtfs/stoptime/^876
+gtfs/stoptime/^876|=arr:15%2538
+gtfs/stoptime/^876|=dep:15%2538
+gtfs/stoptime/^876|>gtfs/stop/^123
+gtfs/stoptime/^876|>gtfs/trip/^456
+gtfs/trip/^456
+gtfs/trip/^456|>gtfs/route/^777
+gtfs/trip/^456|>gtfs/service/^888
+
+
+  gtfs/stoptime/^876|>gtfs/trip/^456
++                     gtfs/trip/^456|>gtfs/route/^777
+----------------------------------------------------------------
+= gtfs/stoptime/^876|>>gtfs/route/^777
+
+
+  gtfs/stoptime/^876|>gtfs/trip/^456
+                      gtfs/trip/^456|>gtfs/service/^888
+----------------------------------------------------------------
+= gtfs/stoptime/^876|>>gtfs/service/^888
+
+============================================================================================================
+
+%|REALM/TYPE|=NAME:VALUE|^IDN
+%|REALM₀/TYPE₀|>N>=REALM₁/TYPE₁/^IDN₁|^IDN₀
+
+%|gtfs/route|=name:U4|^777
+%|gtfs/stoptime|=arr:15%2538|^876
+%|gtfs/stoptime|=dep:15%2538|^876
+%|gtfs/stoptime|>1>gtfs/stop/^123|^876
+%|gtfs/stoptime|>1>gtfs/trip/^456|^876
+%|gtfs/stoptime|>2>gtfs/route/^777|^876
+%|gtfs/stoptime|>2>gtfs/service/^888|^876
+%|gtfs/stop|=name:Bayerischer+Platz|^123
+%|gtfs/trip|>gtfs/route/^777|^456
+%|gtfs/trip|>gtfs/service/^888|^456
+
+"""
+
+
 ############################################################################################################
 # njs_util                  = require 'util'
 # njs_path                  = require 'path'
@@ -58,26 +185,56 @@ DEV                       = options[ 'mode' ] is 'dev'
 
 #-----------------------------------------------------------------------------------------------------------
 @$_XXXX_add_id_indexes = ->
-  idx = 0
   on_data = ( record ) ->
-    gtfs_type = "gtfs/#{record[ 'gtfs-type' ]}"
-    gtfs_id   = record[ 'id' ]
+    realm   = 'gtfs'
+    type    = record[ 'gtfs-type' ]
+    id      = record[ 'gtfs-id' ]
     #.......................................................................................................
-    for name, gtfs_ref_id of record
+    for name, ref_id of record
       match = name.match /^gtfs-(.+?)-id$/
       continue unless match?
-      [ _, gtfs_ref_type ] = match
-      gtfs_ref_type = "gtfs/#{gtfs_ref_type}"
-      gtfs_ref_id   = "#{gtfs_ref_type}/#{gtfs_ref_id}"
-      index_record  =
-        'id':     "%|#{gtfs_type}|#{gtfs_ref_type}|#{gtfs_ref_id}|#{gtfs_id}"
+      [ _, ref_type ] = match
+      ref_realm     = 'gtfs'
+      index_record  = 'id': "%|#{realm}/#{type}|#{ref_realm}/#{ref_type}/#{ref_id}|#{id}"
+      @emit 'data', index_record
+      # index_record  = 'id': "%|#{ref_realm}/#{ref_type}/#{ref_id}<#{realm}/#{type}/#{id}"
+      # @emit 'data', index_record
+    #.......................................................................................................
+    @emit 'data', record
+  #.........................................................................................................
+  return P.through on_data, null
+
+#-----------------------------------------------------------------------------------------------------------
+@$index_on = ( names... ) ->
+  escape = @_escape_for_index
+  on_data = ( record ) ->
+    realm   = 'gtfs'
+    type    = record[ 'gtfs-type' ]
+    id      = record[ 'gtfs-id' ]
+    #.......................................................................................................
+    for name in names
+      value   = record[ name ]
+      continue unless value?
+      #.....................................................................................................
+      unless ( value_type = TYPES.type_of value ) is 'text'
+        throw new Error "building index from type #{rpr value_type} not currently supported"
+      #.....................................................................................................
+      value         = escape value
+      index_record  = 'id': "%|#{realm}/#{type}|#{name}:#{value}|#{id}"
       @emit 'data', index_record
     #.......................................................................................................
     @emit 'data', record
-    # @emit 'data', trip_index_record
-    # debug trip_index_record
-    idx += 1
+  #.........................................................................................................
   return P.through on_data, null
+
+#-----------------------------------------------------------------------------------------------------------
+@_escape_for_index = ( text ) ->
+  R = text
+  R = R.replace /%/g,   '%25'
+  R = R.replace /\|/g,  '%7C'
+  R = R.replace /:/g,   '%3A'
+  R = R.replace /\//g,  '%2F'
+  return R
 
 
 ############################################################################################################
@@ -100,8 +257,9 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe @$set_id_from_gtfs_id()
     .pipe @$clean_agency_record()
     .pipe P.$dasherize_field_names()
+    .pipe @$index_on                    'name' # , 'url'
     .pipe REGISTRY.$register            registry
-    .pipe P.$collect_sample             1, ( _, sample ) -> whisper 'agency', sample
+    .pipe P.$collect_sample             4, ( _, sample ) -> whisper 'agency', sample
     .pipe P.$on_end                     -> handler null
   #.........................................................................................................
   return null
@@ -119,11 +277,12 @@ DEV                       = options[ 'mode' ] is 'dev'
 #-----------------------------------------------------------------------------------------------------------
 ### TAINT name clash (filesystem route vs. GTFS route) ###
 @read_routes = ( registry, route, handler ) ->
+  ratio       = if DEV then 1 / 10 else 1
   input       = P.create_readstream route, 'routes'
   #.........................................................................................................
   input.pipe P.$split()
     .pipe P.$skip_empty()
-    .pipe P.$sample                     1 / 10, headers: true, seed: 5
+    .pipe P.$sample                     ratio, headers: true, seed: 5
     .pipe P.$parse_csv()
     .pipe @$clean_routes_record()
     .pipe P.$dasherize_field_names()
@@ -133,8 +292,9 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe P.$rename                     'route-short-name', 'name'
     .pipe @$set_id_from_gtfs_id()
     .pipe @$_XXXX_add_id_indexes()
+    .pipe @$index_on                    'name'
     .pipe REGISTRY.$register            registry
-    .pipe P.$collect_sample             1, ( _, sample ) -> whisper 'route', sample
+    .pipe P.$collect_sample             8, ( _, sample ) -> whisper 'route', sample
     .pipe P.$on_end                     -> handler null
   #.........................................................................................................
   return null
@@ -169,7 +329,7 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe P.$rename                     'service_id', 'gtfs-id'
     .pipe @$set_id_from_gtfs_id()
     .pipe REGISTRY.$register            registry
-    .pipe P.$collect_sample             1, ( _, sample ) -> whisper 'service', sample
+    .pipe P.$collect_sample             4, ( _, sample ) -> whisper 'service', sample
     .pipe P.$on_end                     -> handler null
   #.........................................................................................................
   return null
@@ -187,7 +347,7 @@ DEV                       = options[ 'mode' ] is 'dev'
 #-----------------------------------------------------------------------------------------------------------
 @read_trips = ( registry, route, handler ) ->
   input       = P.create_readstream route, 'trips'
-  ratio       = if DEV then 1 / 100 else 1
+  ratio       = if DEV then 1 / 10 else 1
   #.........................................................................................................
   input.pipe P.$split()
     .pipe P.$skip_empty()
@@ -204,7 +364,7 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe @$set_id_from_gtfs_id()
     .pipe @$_XXXX_add_id_indexes()
     .pipe REGISTRY.$register            registry
-    .pipe P.$collect_sample             1, ( _, sample ) -> whisper 'trip', sample
+    .pipe P.$collect_sample             4, ( _, sample ) -> whisper 'trip', sample
     .pipe P.$on_end                     -> handler null
   #.........................................................................................................
   return null
@@ -228,7 +388,7 @@ DEV                       = options[ 'mode' ] is 'dev'
 #-----------------------------------------------------------------------------------------------------------
 @read_stop_times = ( registry, route, handler ) ->
   input = P.create_readstream route, 'stop_times'
-  ratio = if DEV then 1 / 1e4 else 1
+  ratio = if DEV then 1 / 1000 else 1
   #.........................................................................................................
   input.pipe P.$split()
     .pipe P.$skip_empty()
@@ -276,21 +436,6 @@ DEV                       = options[ 'mode' ] is 'dev'
     idx += 1
     handler null, record
 
-# #-----------------------------------------------------------------------------------------------------------
-# @$_XXXX_add_stop_times_index = ->
-#   idx = 0
-#   on_data = ( record ) ->
-#     gtfs_stop_times_id  = record[ 'id' ]
-#     gtfs_trip_id        = record[ 'gtfs-trip-id' ]
-#     trip_index_record   =
-#       'id':     "gtfs/stop_times:_<-gtfs/trips:#{gtfs_trip_id}/#{idx}"
-#       '_':      gtfs_stop_times_id
-#     @emit 'data', record
-#     @emit 'data', trip_index_record
-#     # debug trip_index_record
-#     idx += 1
-#   return P.through on_data, null
-
 
 #===========================================================================================================
 # SPECIFIC METHODS: STOPS
@@ -308,8 +453,9 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe P.$rename                     'id', 'gtfs-id'
     .pipe @$set_id_from_gtfs_id()
     .pipe @$convert_latlon()
+    .pipe @$index_on                    'name'
     .pipe REGISTRY.$register            registry
-    .pipe P.$collect_sample             1, ( _, sample ) -> whisper 'stop', sample
+    .pipe P.$collect_sample             4, ( _, sample ) -> whisper 'stop', sample
     .pipe P.$on_end                     -> handler null
   #.........................................................................................................
   return null

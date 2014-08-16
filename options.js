@@ -47,6 +47,14 @@
       'node-types': "agency route station course tour halt".split(/\s+/),
       'info': data_info,
       'home': data_home
+    },
+    'keys': {
+      'primary': '$',
+      'secondary': '%',
+      'joiner': '|',
+      'slash': '/',
+      'link': '^',
+      'facet': ':'
     }
   };
 

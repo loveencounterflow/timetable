@@ -45,6 +45,15 @@ module.exports = options =
     'node-types':         "agency route station course tour halt".split /\s+/
     'info':               data_info
     'home':               data_home
+  #.........................................................................................................
+  'keys':
+    'primary':            '$'
+    'secondary':          '%'
+    'joiner':             '|'
+    'slash':              '/'
+    # 'node':               '.'
+    'link':               '^'
+    'facet':              ':'
 
 
 'gtfs-name': 'agency',         'singular': 'agency',    'plural': 'agencies',   'x': 'gag'

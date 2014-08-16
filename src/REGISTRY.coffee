@@ -65,8 +65,8 @@ test_folder_exists = ( route ) ->
     throw new Error """
       unable to register record without ID:
       #{rpr record}"""
-  ### Records whose only attribute is the ID field are replaced by `true`: ###
-  value = if ( Object.keys record ).length is 1 then true else record
+  ### Records whose only attribute is the ID field are replaced by `1`: ###
+  value = if ( Object.keys record ).length is 1 then 1 else record
   registry.put id, value, ( error ) =>
     return handler error if error?
     handler null, record

@@ -126,12 +126,15 @@ rainbow                   = TRM.rainbow.bind TRM
 options                   = ( require '../options' )[ 'keys' ]
 
 
+
+
 ############################################################################################################
 # WRITERS
 #-----------------------------------------------------------------------------------------------------------
-@new_route = ( realm, type ) ->
-  slash = options[ 'slash' ]
-  return ( @esc realm ) + slash + ( @esc type )
+@new_route = ( realm, type, name ) ->
+  R = [ realm, type, ]
+  R.push name if name?
+  return ( @esc part for part in R ).join options[ 'slash' ]
 
 #-----------------------------------------------------------------------------------------------------------
 @new_id = ( realm, type, idn ) ->
@@ -352,15 +355,26 @@ options                   = ( require '../options' )[ 'keys' ]
 ############################################################################################################
 # HELPERS
 #-----------------------------------------------------------------------------------------------------------
-@esc = ( text ) ->
-  ### TAINT must honor `options[ 'keys' ]` to determine which characters to escape ###
-  # debug ( '%' + d.toString 16 for d in new Buffer 'ä' ).join ''
-  R = text
-  R = R.replace /%/g,   '%25'
-  R = R.replace /\|/g,  '%7C'
-  # R = R.replace /:/g,   '%3A'
-  R = R.replace /\//g,  '%2F'
-  return R
+@esc = do ->
+  #.........................................................................................................
+  escape = ( text ) ->
+      R = text
+      R = R.replace /([-()\[\]{}+?*.$\^|,:#<!\\])/g, '\\$1'
+      R = R.replace /\x08/g, '\\x08'
+      return R
+  #.........................................................................................................
+  joiner_matcher  = new RegExp ( escape options[ 'joiner' ] ), 'g'
+  slash_matcher   = new RegExp ( escape options[ 'slash'  ] ), 'g'
+  joiner_replacer = ( '%' + d.toString 16 for d in new Buffer options[ 'joiner' ] ).join ''
+  slash_replacer  = ( '%' + d.toString 16 for d in new Buffer options[ 'slash'  ] ).join ''
+  #.........................................................................................................
+  return ( x ) ->
+    throw new Error "value cannot be undefined" if x is undefined
+    R = if TYPES.isa_text x then x else rpr x
+    R = R.replace /%/g,           '%25'
+    R = R.replace joiner_matcher, joiner_replacer
+    R = R.replace slash_matcher,  slash_replacer
+    return R
 
 #-----------------------------------------------------------------------------------------------------------
 @_split_id = ( id ) ->
@@ -383,6 +397,8 @@ options                   = ( require '../options' )[ 'keys' ]
 unless module.parent?
   help @new_id                      'gtfs', 'stop', '123'
   # help @new_node                    'gtfs', 'stop', '123'
+  help @new_facet                   'gtfs', 'stop', '123', 'name', 1234
+  help @new_facet                   'gtfs', 'stop', '123', 'name', 'foo/bar|baz'
   help @new_facet                   'gtfs', 'stop', '123', 'name', 'Bayerischer Platz'
   help @new_secondary_facet         'gtfs', 'stop', '123', 'name', 'Bayerischer Platz'
   help @new_facet_pair              'gtfs', 'stop', '123', 'name', 'Bayerischer Platz'
@@ -398,6 +414,7 @@ unless module.parent?
   help @infer '$^|gtfs/stoptime/876|0|gtfs/trip/456', '%^|gtfs/trip|0|gtfs/route/777|456'
   help @infer '$^|gtfs/trip/456|0|gtfs/stop/123',     '$:|gtfs/stop/123|0|name|Bayerischer Platz'
   help @infer '$^|gtfs/stoptime/876|1|gtfs/stop/123', '$:|gtfs/stop/123|0|name|Bayerischer Platz'
+
 
   # levelup = require 'level'
   # REGISTRY  = require '../REGISTRY'

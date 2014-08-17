@@ -188,9 +188,9 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe P.$rename                     'agency-id',        'gtfs-agency-id'
     .pipe P.$rename                     'route-short-name', 'name'
     .pipe @$set_id_from_gtfs_id()
-    .pipe @$_XXXX_add_id_indexes()
-    .pipe @$index_on                    'name'
-    .pipe REGISTRY.$register            registry
+    # .pipe @$_XXXX_add_id_indexes()
+    # .pipe @$index_on                    'name'
+    .pipe REGISTRY.$register_2          registry
     .pipe P.$collect_sample             8, ( _, sample ) -> whisper 'route', sample
     .pipe P.$on_end                     -> handler null
   #.........................................................................................................
@@ -225,7 +225,7 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe P.$set                        'gtfs-type', 'calendar_dates'
     .pipe P.$rename                     'service_id', 'gtfs-id'
     .pipe @$set_id_from_gtfs_id()
-    .pipe REGISTRY.$register            registry
+    .pipe REGISTRY.$register_2          registry
     .pipe P.$collect_sample             4, ( _, sample ) -> whisper 'service', sample
     .pipe P.$on_end                     -> handler null
   #.........................................................................................................
@@ -259,8 +259,8 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe P.$rename                     'route-id',         'gtfs-routes-id'
     .pipe P.$rename                     'service-id',       'gtfs-service-id'
     .pipe @$set_id_from_gtfs_id()
-    .pipe @$_XXXX_add_id_indexes()
-    .pipe REGISTRY.$register            registry
+    # .pipe @$_XXXX_add_id_indexes()
+    .pipe REGISTRY.$register_2          registry
     .pipe P.$collect_sample             4, ( _, sample ) -> whisper 'trip', sample
     .pipe P.$on_end                     -> handler null
   #.........................................................................................................
@@ -285,8 +285,8 @@ DEV                       = options[ 'mode' ] is 'dev'
 #-----------------------------------------------------------------------------------------------------------
 @read_stop_times = ( registry, route, handler ) ->
   input = P.create_readstream route, 'stop_times'
-  # ratio = if DEV then 1 / 10000 else 1
-  ratio = if DEV then 1 else 1 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  ratio = if DEV then 1 / 10000 else 1
+  # ratio = if DEV then 1 else 1 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   #.........................................................................................................
   input.pipe P.$split()
     .pipe P.$skip_empty()
@@ -387,11 +387,11 @@ DEV                       = options[ 'mode' ] is 'dev'
     ok_types  = []
     #.......................................................................................................
     for gtfs_type in options[ 'data' ][ 'gtfs-types' ]
-      if DEV
-        # if gtfs_type not in [ 'agency', 'stops', ]  # <<<<<<<<<<
-        if gtfs_type not in [ 'stop_times', ]  # <<<<<<<<<<
-          warn "skipping #{gtfs_type}"  # <<<<<<<<<<
-          continue                    # <<<<<<<<<<
+      # if DEV
+      #   # if gtfs_type not in [ 'agency', 'stops', ]  # <<<<<<<<<<
+      #   if gtfs_type not in [ 'stop_times', ]  # <<<<<<<<<<
+      #     warn "skipping #{gtfs_type}"  # <<<<<<<<<<
+      #     continue                    # <<<<<<<<<<
       route = route_by_types[ gtfs_type ]
       unless route?
         no_source.push "skipping #{source_name}/#{gtfs_type} (no source file)"

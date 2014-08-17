@@ -92,37 +92,49 @@ test_folder_exists = ( route ) ->
     throw new Error """
       unable to register record without ID:
       #{rpr record}"""
+  #.........................................................................................................
+  meta_value            = '1'
+  entries               = []
   ### TAINT kludge, must be changed in GTFS reader ###
   [ realm, type, idn, ] = id.split '/'
-  route       = KEY.new_route realm, type
-  meta_value  = '1'
-  tasks       = []
+  route                 = KEY.new_route realm, type
+  key                   = KEY.new_node  realm, type, idn
+  entries.push [ key, JSON.stringify record, ]
+  #.........................................................................................................
   for name, value of record
+    ### TAINT make configurable ###
     continue if name is 'id'
     continue if name is 'gtfs-id'
     continue if name is 'gtfs-type'
-    value = rpr value unless TYPES.isa_text value
-    keys  = []
-    ### TAINT must apply escaping or use KEY method ###
-    route = [ realm, type, name ].join options[ 'keys' ][ 'slash' ]
+    facet_route = KEY.new_route realm, type, name
+    index_type  = indexes[ facet_route ]
+    continue unless index_type?
+    ### TAINT should analyze options beforehand ###
+    [ index_level
+      index_type ] = index_type.split '-'
     #.......................................................................................................
-    if /-id$/.test name
-      idn_1                   = value
-      [ realm_1, type_1, _, ] = name.split '-'
-      keys.push KEY.new_link           realm, type, idn, realm_1, type_1, idn_1, 0
-      keys.push KEY.new_secondary_link realm, type, idn, realm_1, type_1, idn_1, 0 if indexes[ route ]
+    switch index_type
+      #.....................................................................................................
+      when 'link'
+        idn_1                   = value
+        [ realm_1, type_1, _, ] = name.split '-'
+        if index_level is 'primary'
+          key = KEY.new_link           realm, type, idn, realm_1, type_1, idn_1, 0
+        else
+          key = KEY.new_secondary_link realm, type, idn, realm_1, type_1, idn_1, 0
+      #.....................................................................................................
+      when 'facet'
+        if index_level is 'primary'
+          key = KEY.new_facet           realm, type, idn, name, value
+        else
+          key = KEY.new_secondary_facet realm, type, idn, name, value
+      #.....................................................................................................
+      else throw new Error "unknown index type #{rpr index_type}"
     #.......................................................................................................
-    else
-      keys.push KEY.new_facet           realm, type, idn, name, value
-      keys.push KEY.new_secondary_facet realm, type, idn, name, value if indexes[ route ]
-    #.......................................................................................................
-    for key in keys
-      do ( key ) ->
-        tasks.push ( handler ) =>
-          registry.put key, meta_value, ( error ) =>
-            handler if error? then error else null
+    entries.push [ key, meta_value, ]
   #.........................................................................................................
-  ASYNC.parallel tasks, ( error ) =>
+  tasks = ( { type: 'put', key: key, value: value } for [ key, value, ] in entries )
+  registry.batch tasks, ( error ) =>
     handler if error? then error else null
 
 #-----------------------------------------------------------------------------------------------------------

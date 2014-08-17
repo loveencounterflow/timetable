@@ -49,11 +49,12 @@
       'info': data_info,
       'home': data_home,
       'indexes': {
-        'gtfs/agency/name': 'secondary',
+        'gtfs/agency/name': 'secondary-facet',
         'gtfs/stop_times/gtfs-stops-id': 'secondary-link',
         'gtfs/stop_times/gtfs-trips-id': 'secondary-link',
-        'gtfs/stops/name': 'secondary',
-        'gtfs/trips/gtfs-stops-id': 'secondary-link'
+        'gtfs/stops/name': 'secondary-facet',
+        'gtfs/routes/name': 'secondary-facet',
+        'gtfs/trips/gtfs-routes-id': 'secondary-link'
       }
     },
     'keys': {

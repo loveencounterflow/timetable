@@ -31,6 +31,7 @@ KEY                       = require './KEY'
 
 
 
+
 #-----------------------------------------------------------------------------------------------------------
 test_folder_exists = ( route ) ->
   return false unless njs_fs.existsSync route
@@ -107,31 +108,30 @@ test_folder_exists = ( route ) ->
     continue if name is 'gtfs-id'
     continue if name is 'gtfs-type'
     facet_route = KEY.new_route realm, type, name
-    index_type  = indexes[ facet_route ]
-    continue unless index_type?
-    ### TAINT should analyze options beforehand ###
-    [ index_level
-      index_type ] = index_type.split '-'
-    #.......................................................................................................
-    switch index_type
-      #.....................................................................................................
-      when 'link'
+    #.....................................................................................................
+    if ( has_index = indexes[ 'direct' ]?[ 'facet' ] )?
+      has_primary   = has_index[ 'primary'   ]?[ facet_route ] ? false
+      has_secondary = has_index[ 'secondary' ]?[ facet_route ] ? false
+      if has_primary or has_secondary
+        if has_primary
+          key = KEY.new_facet           realm, type, idn, name, value
+          entries.push [ key, meta_value, ]
+        if has_secondary
+          key = KEY.new_secondary_facet realm, type, idn, name, value
+          entries.push [ key, meta_value, ]
+    #.....................................................................................................
+    if ( has_index = indexes[ 'direct' ]?[ 'link' ] )?
+      has_primary   = has_index[ 'primary'   ]?[ facet_route ] ? false
+      has_secondary = has_index[ 'secondary' ]?[ facet_route ] ? false
+      if has_primary or has_secondary
         idn_1                   = value
         [ realm_1, type_1, _, ] = name.split '-'
-        if index_level is 'primary'
+        if has_primary
           key = KEY.new_link           realm, type, idn, realm_1, type_1, idn_1, 0
-        else
+          entries.push [ key, meta_value, ]
+        if has_secondary
           key = KEY.new_secondary_link realm, type, idn, realm_1, type_1, idn_1, 0
-      #.....................................................................................................
-      when 'facet'
-        if index_level is 'primary'
-          key = KEY.new_facet           realm, type, idn, name, value
-        else
-          key = KEY.new_secondary_facet realm, type, idn, name, value
-      #.....................................................................................................
-      else throw new Error "unknown index type #{rpr index_type}"
-    #.......................................................................................................
-    entries.push [ key, meta_value, ]
+          entries.push [ key, meta_value, ]
   #.........................................................................................................
   tasks = ( { type: 'put', key: key, value: value } for [ key, value, ] in entries )
   registry.batch tasks, ( error ) =>
@@ -144,6 +144,32 @@ test_folder_exists = ( route ) ->
       return handler error if error?
       handler null, record
 
+#-----------------------------------------------------------------------------------------------------------
+@register_deferred_properties = ( registry, handler ) ->
+  for type, type_index of indexes[ 'inferred' ]
+    for level, level_index of type_index
+      for [ entry_type, source_selector, target_facet_name, ] in level_index
+        debug type, level, source_selector, target_facet_name
+        query =
+          gte:      source_selector
+          lte:      KEY.lte_from_gte source_selector
+        registry.createKeyStream query
+          .on 'data', ( source_key ) ->
+            [ target_realm, target_type, target_idn ] = KEY.split_id ( KEY.read source_key )[ 'target' ]
+            target_node_key = KEY.new_node target_realm, target_type, target_idn
+            registry.get target_node_key, ( error, target_node ) ->
+              return handler error if error?
+              ### TAINT why is this not done automatically? ###
+              target_node         = JSON.parse target_node
+              target_facet_value  = target_node[ target_facet_name ]
+              ### TAINT kludge ###
+              info ( target_facet_name.replace /-/g, '/' ) + '/' + target_facet_value
+              unless target_facet_value?
+                return handler new Error "facet #{rpr target_facet_name} not defined in #{rpr target_node}"
+              # KEY.new_secondary_facet
+              # registry.put
+          .on 'error', ( error ) -> return handler error
+          .on 'end', -> return handler null
 
   # #.......................................................................................................
   # gtfs_type = record[ '%gtfs-type' ]
@@ -184,3 +210,11 @@ test_folder_exists = ( route ) ->
 #   #.......................................................................................................
 #   sub_registry[ id ] = record
 #   return null
+
+############################################################################################################
+unless module.parent?
+  registry = @new_registry()
+  @register_deferred_properties registry, ( error, data ) ->
+    throw error if error?
+    help data
+

@@ -244,7 +244,8 @@ DEV                       = options[ 'mode' ] is 'dev'
 #-----------------------------------------------------------------------------------------------------------
 @read_trips = ( registry, route, handler ) ->
   input       = P.create_readstream route, 'trips'
-  ratio       = if DEV then 1 / 10 else 1
+  # ratio       = if DEV then 1 / 10 else 1
+  ratio       = if DEV then 1 else 1 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   #.........................................................................................................
   input.pipe P.$split()
     .pipe P.$skip_empty()

@@ -144,7 +144,7 @@ options                   = ( require '../options' )[ 'keys' ]
 #-----------------------------------------------------------------------------------------------------------
 @new_node = ( realm, type, idn ) ->
   joiner = options[ 'joiner' ]
-  return options[ 'primary' ] + options[ 'node' ] + joiner + ( @new_id realm, type, idn )
+  return options[ 'primary' ] + options[ 'node' ] + joiner + ( @new_id realm, type, idn ) + joiner
 
 #-----------------------------------------------------------------------------------------------------------
 @new_facet_pair = ( realm, type, idn, name, value, distance = 0 ) ->
@@ -164,7 +164,8 @@ options                   = ( require '../options' )[ 'keys' ]
     + joiner                                \
     + ( @esc name )                         \
     + joiner                                \
-    + ( @esc value )
+    + ( @esc value )                        \
+    + joiner
 
 #-----------------------------------------------------------------------------------------------------------
 @new_secondary_facet = ( realm, type, idn, name, value, distance = 0 ) ->
@@ -180,7 +181,8 @@ options                   = ( require '../options' )[ 'keys' ]
     + joiner                                \
     + ( @esc value )                        \
     + joiner                                \
-    + ( @esc idn )
+    + ( @esc idn )                          \
+    + joiner
 
 #-----------------------------------------------------------------------------------------------------------
 @new_link_pair = ( realm_0, type_0, idn_0, realm_1, type_1, idn_1, distance = 0 ) ->
@@ -198,7 +200,8 @@ options                   = ( require '../options' )[ 'keys' ]
     + joiner                                \
     + distance                              \
     + joiner                                \
-    + ( @new_id realm_1, type_1, idn_1 )
+    + ( @new_id realm_1, type_1, idn_1 )    \
+    + joiner
 
 #-----------------------------------------------------------------------------------------------------------
 @new_secondary_link = ( realm_0, type_0, idn_0, realm_1, type_1, idn_1, distance = 0 ) ->
@@ -212,7 +215,8 @@ options                   = ( require '../options' )[ 'keys' ]
     + joiner                                \
     + ( @new_id realm_1, type_1, idn_1 )    \
     + joiner                                \
-    + ( @esc idn_0 )
+    + ( @esc idn_0 )                        \
+    + joiner
 
 
 ############################################################################################################
@@ -316,10 +320,10 @@ options                   = ( require '../options' )[ 'keys' ]
   #.........................................................................................................
   [ link_realm
     link_type
-    link_idn  ]   = @_split_id link[ 'id' ]
+    link_idn  ]   = @split_id link[ 'id' ]
   [ facet_realm
     facet_type
-    facet_idn  ]  = @_split_id link[ 'id' ]
+    facet_idn  ]  = @split_id link[ 'id' ]
   ### TAINT route not distinct from ID? ###
   ### TAINT should slashes in name be escaped? ###
   ### TAINT what happens when we infer from an inferred facet? do all the escapes get re-escaped? ###
@@ -343,10 +347,10 @@ options                   = ( require '../options' )[ 'keys' ]
   #.........................................................................................................
   [ realm_0
     type_0
-    idn_0  ]  = @_split_id link_0[ 'id' ]
+    idn_0  ]  = @split_id link_0[ 'id' ]
   [ realm_2
     type_2
-    idn_2  ]  = @_split_id link_1[ 'target' ]
+    idn_2  ]  = @split_id link_1[ 'target' ]
   distance    = link_0[ 'distance' ] + link_1[ 'distance' ] + 1
   #.........................................................................................................
   return @new_link_pair realm_0, type_0, idn_0, realm_2, type_2, idn_2, distance
@@ -377,7 +381,7 @@ options                   = ( require '../options' )[ 'keys' ]
     return R
 
 #-----------------------------------------------------------------------------------------------------------
-@_split_id = ( id ) ->
+@split_id = ( id ) ->
   R = id.split slash = options[ 'slash' ]
   throw new Error "expected three parts separated by #{rpr slash}, got #{rpr id}" unless R.length is 3
   throw new Error "realm cannot be empty in #{rpr id}"  unless R[ 0 ].length > 0
@@ -391,6 +395,13 @@ options                   = ( require '../options' )[ 'keys' ]
   throw new Error "not a valid ID: #{rpr id}" unless match?
   return match[ 1 ]
 
+#-----------------------------------------------------------------------------------------------------------
+@lte_from_gte = ( gte ) ->
+  length  = Buffer.byteLength gte
+  R       = new Buffer 1 + length
+  R.write gte
+  R[ length ] = 0xff
+  return R
 
 
 ############################################################################################################

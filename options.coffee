@@ -46,14 +46,31 @@ module.exports = options =
     'info':               data_info
     'home':               data_home
     'indexes':
-      # direct
-      'gtfs/agency/name':                   'secondary-facet'
-      'gtfs/stop_times/gtfs-stops-id':      'secondary-link'
-      'gtfs/stop_times/gtfs-trips-id':      'secondary-link'
-      'gtfs/stops/name':                    'secondary-facet'
-      'gtfs/routes/name':                   'secondary-facet'
-      'gtfs/trips/gtfs-routes-id':          'secondary-link'
-      # inferred
+      'direct':
+        'facet':
+          'secondary':
+            'gtfs/agency/name':                   true
+            'gtfs/stops/name':                    true
+            'gtfs/routes/name':                   true
+        'link':
+          'secondary':
+            'gtfs/stop_times/gtfs-stops-id':      true
+            'gtfs/stop_times/gtfs-trips-id':      true
+            'gtfs/trips/gtfs-routes-id':          true
+      'inferred':
+        'link':
+          'secondary': [
+            # [ 'gtfs/stop_times/gtfs-trips-id', 'gtfs/trips/gtfs-routes-id', ]
+            # [ '%^|gtfs/stop_times|0|gtfs/trips/', 'gtfs/trips/gtfs-routes-id', ]
+
+            # prefix selector                     # name of the targetted
+            # yields a number of trips            # facet on the inferred
+            # referred to by stop_times           # property
+            # results must end with an ID
+            # (a foreign key in SQLish)
+            [ 'link', '%^|gtfs/stop_times|0|gtfs/trips/', 'gtfs-routes-id' ]
+            ]
+
   #.........................................................................................................
   'keys':
     # level marks:

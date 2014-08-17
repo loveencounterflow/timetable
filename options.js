@@ -49,12 +49,27 @@
       'info': data_info,
       'home': data_home,
       'indexes': {
-        'gtfs/agency/name': 'secondary-facet',
-        'gtfs/stop_times/gtfs-stops-id': 'secondary-link',
-        'gtfs/stop_times/gtfs-trips-id': 'secondary-link',
-        'gtfs/stops/name': 'secondary-facet',
-        'gtfs/routes/name': 'secondary-facet',
-        'gtfs/trips/gtfs-routes-id': 'secondary-link'
+        'direct': {
+          'facet': {
+            'secondary': {
+              'gtfs/agency/name': true,
+              'gtfs/stops/name': true,
+              'gtfs/routes/name': true
+            }
+          },
+          'link': {
+            'secondary': {
+              'gtfs/stop_times/gtfs-stops-id': true,
+              'gtfs/stop_times/gtfs-trips-id': true,
+              'gtfs/trips/gtfs-routes-id': true
+            }
+          }
+        },
+        'inferred': {
+          'link': {
+            'secondary': [['link', '%^|gtfs/stop_times|0|gtfs/trips/', 'gtfs-routes-id']]
+          }
+        }
       }
     },
     'keys': {

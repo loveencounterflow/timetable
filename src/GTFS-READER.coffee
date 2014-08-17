@@ -109,6 +109,29 @@ DEV                       = options[ 'mode' ] is 'dev'
   R = R.replace /\//g,  '%2F'
   return R
 
+#-----------------------------------------------------------------------------------------------------------
+@$index_on_2 = ( names... ) ->
+  escape = @_escape_for_index
+  on_data = ( record ) ->
+    realm   = 'gtfs'
+    type    = record[ 'gtfs-type' ]
+    id      = record[ 'gtfs-id' ]
+    #.......................................................................................................
+    for name in names
+      value   = record[ name ]
+      continue unless value?
+      #.....................................................................................................
+      unless ( value_type = TYPES.type_of value ) is 'text'
+        throw new Error "building index from type #{rpr value_type} not currently supported"
+      #.....................................................................................................
+      value         = escape value
+      index_record  = 'id': "%|#{realm}/#{type}|#{name}:#{value}|#{id}"
+      @emit 'data', index_record
+    #.......................................................................................................
+    @emit 'data', record
+  #.........................................................................................................
+  return P.through on_data, null
+
 
 ############################################################################################################
 # SPECIFIC METHODS
@@ -130,8 +153,9 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe @$set_id_from_gtfs_id()
     .pipe @$clean_agency_record()
     .pipe P.$dasherize_field_names()
-    .pipe @$index_on                    'name' # , 'url'
-    .pipe REGISTRY.$register            registry
+    # .pipe @$index_on_2                    'name' # , 'url'
+    # .pipe REGISTRY.$register            registry
+    .pipe REGISTRY.$register_2          registry
     .pipe P.$collect_sample             4, ( _, sample ) -> whisper 'agency', sample
     .pipe P.$on_end                     -> handler null
   #.........................................................................................................
@@ -261,7 +285,8 @@ DEV                       = options[ 'mode' ] is 'dev'
 #-----------------------------------------------------------------------------------------------------------
 @read_stop_times = ( registry, route, handler ) ->
   input = P.create_readstream route, 'stop_times'
-  ratio = if DEV then 1 / 1000 else 1
+  # ratio = if DEV then 1 / 10000 else 1
+  ratio = if DEV then 1 else 1 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   #.........................................................................................................
   input.pipe P.$split()
     .pipe P.$skip_empty()
@@ -277,9 +302,9 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe @$add_stoptimes_gtfs_id()
     .pipe @$set_id_from_gtfs_id()
     # .pipe @$add_stoptime_to_trip        registry # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    .pipe @$_XXXX_add_id_indexes()
+    # .pipe @$_XXXX_add_id_indexes()
     # .pipe @$_XXXX_add_stop_times_index()
-    .pipe REGISTRY.$register            registry
+    .pipe REGISTRY.$register_2          registry
     # .pipe @$register_stop_id            registry
     # .pipe @$_XXX_save() # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     .pipe P.$collect_sample             5, ( _, sample ) -> whisper 'stop_time', sample
@@ -326,8 +351,8 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe P.$rename                     'id', 'gtfs-id'
     .pipe @$set_id_from_gtfs_id()
     .pipe @$convert_latlon()
-    .pipe @$index_on                    'name'
-    .pipe REGISTRY.$register            registry
+    # .pipe @$index_on                    'name'
+    .pipe REGISTRY.$register_2          registry
     .pipe P.$collect_sample             4, ( _, sample ) -> whisper 'stop', sample
     .pipe P.$on_end                     -> handler null
   #.........................................................................................................
@@ -362,10 +387,11 @@ DEV                       = options[ 'mode' ] is 'dev'
     ok_types  = []
     #.......................................................................................................
     for gtfs_type in options[ 'data' ][ 'gtfs-types' ]
-      # if DEV
-      #   if gtfs_type in [ 'agency', 'stops', ]  # <<<<<<<<<<
-      #     warn "skipping #{gtfs_type}"  # <<<<<<<<<<
-      #     continue                    # <<<<<<<<<<
+      if DEV
+        # if gtfs_type not in [ 'agency', 'stops', ]  # <<<<<<<<<<
+        if gtfs_type not in [ 'stop_times', ]  # <<<<<<<<<<
+          warn "skipping #{gtfs_type}"  # <<<<<<<<<<
+          continue                    # <<<<<<<<<<
       route = route_by_types[ gtfs_type ]
       unless route?
         no_source.push "skipping #{source_name}/#{gtfs_type} (no source file)"

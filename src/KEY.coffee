@@ -138,10 +138,10 @@ options                   = ( require '../options' )[ 'keys' ]
   slash = options[ 'slash' ]
   return ( @new_route realm, type ) + slash + ( @esc idn )
 
-# #-----------------------------------------------------------------------------------------------------------
-# @new_node = ( realm, type, idn ) ->
-#   joiner = options[ 'joiner' ]
-#   return options[ 'primary' ] + options[ 'node' ] + joiner + ( @new_id realm, type, idn )
+#-----------------------------------------------------------------------------------------------------------
+@new_node = ( realm, type, idn ) ->
+  joiner = options[ 'joiner' ]
+  return options[ 'primary' ] + options[ 'node' ] + joiner + ( @new_id realm, type, idn )
 
 #-----------------------------------------------------------------------------------------------------------
 @new_facet_pair = ( realm, type, idn, name, value, distance = 0 ) ->
@@ -236,6 +236,14 @@ options                   = ( require '../options' )[ 'keys' ]
     else throw new Error "unknown layer mark #{rpr layer}"
   #.........................................................................................................
   R[ 'key' ] = key
+  return R
+
+#-----------------------------------------------------------------------------------------------------------
+@_read_primary_node = ( id ) ->
+  R =
+    level:      'primary'
+    type:       'node'
+    id:         id
   return R
 
 #-----------------------------------------------------------------------------------------------------------

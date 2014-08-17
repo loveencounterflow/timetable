@@ -4,6 +4,7 @@
 ############################################################################################################
 njs_fs                    = require 'fs'
 #...........................................................................................................
+TYPES                     = require 'coffeenode-types'
 TRM                       = require 'coffeenode-trm'
 rpr                       = TRM.rpr.bind TRM
 badge                     = 'TIMETABLE/REGISTRY'
@@ -19,10 +20,15 @@ echo                      = TRM.echo.bind TRM
 rainbow                   = TRM.rainbow.bind TRM
 #...........................................................................................................
 options                   = require '../options'
+indexes                   = options[ 'data' ][ 'indexes' ]
 new_db                    = require 'level'
+#...........................................................................................................
+ASYNC                     = require 'async'
 #...........................................................................................................
 P                         = require 'pipedreams'
 $                         = P.$.bind P
+KEY                       = require './KEY'
+
 
 
 #-----------------------------------------------------------------------------------------------------------
@@ -75,6 +81,54 @@ test_folder_exists = ( route ) ->
 @$register = ( registry ) ->
   return $ ( record, handler ) =>
     @register registry, record, ( error ) =>
+      return handler error if error?
+      handler null, record
+
+#-----------------------------------------------------------------------------------------------------------
+@register_2 = ( registry, record, handler ) ->
+  ### TAINT kludge, change to using strings as records ###
+  id = record[ 'id' ]
+  unless id?
+    throw new Error """
+      unable to register record without ID:
+      #{rpr record}"""
+  ### TAINT kludge, must be changed in GTFS reader ###
+  [ realm, type, idn, ] = id.split '/'
+  route       = KEY.new_route realm, type
+  meta_value  = '1'
+  tasks       = []
+  for name, value of record
+    continue if name is 'id'
+    continue if name is 'gtfs-id'
+    continue if name is 'gtfs-type'
+    value = rpr value unless TYPES.isa_text value
+    keys  = []
+    ### TAINT must apply escaping or use KEY method ###
+    route = [ realm, type, name ].join options[ 'keys' ][ 'slash' ]
+    #.......................................................................................................
+    if /-id$/.test name
+      idn_1                   = value
+      [ realm_1, type_1, _, ] = name.split '-'
+      keys.push KEY.new_link           realm, type, idn, realm_1, type_1, idn_1, 0
+      keys.push KEY.new_secondary_link realm, type, idn, realm_1, type_1, idn_1, 0 if indexes[ route ]
+    #.......................................................................................................
+    else
+      keys.push KEY.new_facet           realm, type, idn, name, value
+      keys.push KEY.new_secondary_facet realm, type, idn, name, value if indexes[ route ]
+    #.......................................................................................................
+    for key in keys
+      do ( key ) ->
+        tasks.push ( handler ) =>
+          registry.put key, meta_value, ( error ) =>
+            handler if error? then error else null
+  #.........................................................................................................
+  ASYNC.parallel tasks, ( error ) =>
+    handler if error? then error else null
+
+#-----------------------------------------------------------------------------------------------------------
+@$register_2 = ( registry ) ->
+  return $ ( record, handler ) =>
+    @register_2 registry, record, ( error ) =>
       return handler error if error?
       handler null, record
 

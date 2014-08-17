@@ -25,7 +25,7 @@ catch error
 #-----------------------------------------------------------------------------------------------------------
 module.exports = options =
   #.........................................................................................................
-  # 'mode': 'dev'
+  'mode': 'dev'
   #.........................................................................................................
   'parser':
     'delimiter':          ','
@@ -45,13 +45,22 @@ module.exports = options =
     'node-types':         "agency route station course tour halt".split /\s+/
     'info':               data_info
     'home':               data_home
+    'indexes':
+      'gtfs/agency/name':                   'secondary'
+      'gtfs/stop_times/gtfs-stops-id':      'secondary-link'
+      'gtfs/stop_times/gtfs-trips-id':      'secondary-link'
+      'gtfs/stops/name':                    'secondary'
+      'gtfs/trips/gtfs-stops-id':           'secondary-link'
   #.........................................................................................................
   'keys':
+    # level marks:
     'primary':            '$'
     'secondary':          '%'
+    # connector marks:
     'joiner':             '|'
     'slash':              '/'
-    # 'node':               '.'
+    # type marks:
+    'node':               '.'
     'link':               '^'
     'facet':              ':'
 

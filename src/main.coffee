@@ -29,8 +29,8 @@ options                   = require '../options'
   P = require 'pipedreams'
   $ = P.$.bind P
   query =
-    gte:     'gtfs/stops/'
-    lte:     'gtfs/stops/\xff'
+    gte:     '$:|gtfs/agency/'
+    lte:     '$:|gtfs/agency/\xff'
   help 'show registry'
   count = 0
   # input = ( db.createReadStream query[ 'levelup' ][ 'new' ] )

@@ -36,28 +36,6 @@ new_lte = ( text ) ->
   R[ length ] = 0xff
   return R
 
-# debug ( new_lte 'BVG' ).toString 'utf-8'
-
-"""
-
-# realm / type / ID
-
-  %|gtfs/routes|gtfs/agency/0NV___|11'
-  %|gtfs/stop_times|gtfs/stops/9001103|59'
-  %|gtfs/stop_times|gtfs/trips/100288|140'
-  %|gtfs/trips|gtfs/routes/1001|124813'
-  %|gtfs/trips|gtfs/service/000000|105962'
-
-  %  |  gtfs/routes  |  gtfs/agency/BVB---  |  330
-       type            ref-id                 id
-
-  %  |  gtfs/routes  |  gtfs/agency/BVB---  |  330
-       type            ref-id                 id
-
-
-  %|gtfs/routes|name:S5|549
-
-"""
 
 #-----------------------------------------------------------------------------------------------------------
 @show_routes_of_agency = ( db, agency_id, handler ) ->
@@ -107,12 +85,21 @@ $filter = ( f ) ->
     .pipe P.$show()
 
 #-----------------------------------------------------------------------------------------------------------
-@show_db_sample = ( db, handler ) ->
-  db.createReadStream gt: new_lte '%'
-    .pipe P.$sample                     1 / 1e5, seed: 5
-    .pipe $ ( { key, value, }, handler ) ->
-      return handler null, key if value is true
-      return handler null, value
+@show_db_sample = ( db, O..., handler ) ->
+  O               = O[ 0 ] ? {}
+  ratio           = O[ 'ratio' ] ? 1 / 1e4
+  stream_options  = {}
+  if ( prefix = O[ 'prefix' ] )?
+    stream_options[ 'gte' ] = prefix
+    stream_options[ 'lte' ] = new_lte prefix
+  whisper "ratio:   #{ratio}"
+  whisper "stream:  #{rpr stream_options}"
+  db.createKeyStream stream_options
+    .pipe P.$count  ( _, count ) -> help "walked over #{count} entries"
+    .pipe P.$sample ratio, seed: 5
+    # .pipe $ ( { key, value, }, handler ) ->
+    #   return handler null, key if value is true
+    #   return handler null, value
     .pipe P.$show()
     .on 'end', -> handler null, null
 
@@ -405,8 +392,9 @@ $read_trips_from_route = ( db ) ->
   # @show_subway_routes registry, handler
   # @show_stops_of_route registry, 'U4', handler
   # @show_stops_of_route_2 registry, 'U4', handler
-  @f registry, 'U1', ( error, record ) -> debug record
-  # @show_db_sample registry, handler
+  # @f registry, 'U1', ( error, record ) -> debug record
+  @show_db_sample registry, ratio: 1 / 100, prefix: '%^|gtfs/stop_times|0|gtfs/trips/', handler
+  # @show_db_sample registry, ratio: 1 / 100, handler
   return null
 
 

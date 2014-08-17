@@ -27,6 +27,7 @@
   }
 
   module.exports = options = {
+    'mode': 'dev',
     'parser': {
       'delimiter': ',',
       'skip_empty_lines': true
@@ -46,13 +47,21 @@
       'gtfs-types': "agency calendar_dates calendar routes transfers trips stop_times stops".split(/\s+/),
       'node-types': "agency route station course tour halt".split(/\s+/),
       'info': data_info,
-      'home': data_home
+      'home': data_home,
+      'indexes': {
+        'gtfs/agency/name': 'secondary',
+        'gtfs/stop_times/gtfs-stops-id': 'secondary-link',
+        'gtfs/stop_times/gtfs-trips-id': 'secondary-link',
+        'gtfs/stops/name': 'secondary',
+        'gtfs/trips/gtfs-stops-id': 'secondary-link'
+      }
     },
     'keys': {
       'primary': '$',
       'secondary': '%',
       'joiner': '|',
       'slash': '/',
+      'node': '.',
       'link': '^',
       'facet': ':'
     }

@@ -304,18 +304,14 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe @$clean_stop_times_record()
     .pipe P.$set                        'gtfs-type', 'stop_times'
     .pipe P.$dasherize_field_names()
-    .pipe P.$rename                     'trip-id',        'gtfs-trips-id'
-    .pipe P.$rename                     'stop-id',        'gtfs-stops-id'
+    .pipe P.$rename                     'trip-id',        'gtfs-trip-id'
+    .pipe P.$rename                     'stop-id',        'gtfs-stop-id'
     .pipe P.$rename                     'arrival-time',   'arr'
     .pipe P.$rename                     'departure-time', 'dep'
     .pipe @$add_stoptimes_gtfs_id()
-    .pipe @$set_id_from_gtfs_id()
-    # .pipe @$add_stoptime_to_trip        registry # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    # .pipe @$_XXXX_add_id_indexes()
-    # .pipe @$_XXXX_add_stop_times_index()
+    .pipe @$set_id                      'gtfs', 'trip',   'gtfs-trip-id'
+    .pipe @$set_id                      'gtfs', 'stop',   'gtfs-stop-id'
     .pipe REGISTRY.$register_2          registry
-    # .pipe @$register_stop_id            registry
-    # .pipe @$_XXX_save() # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     .pipe P.$collect_sample             5, ( _, sample ) -> whisper 'stop_time', sample
     .pipe P.$on_end                     -> handler null
   #.........................................................................................................
@@ -339,7 +335,7 @@ DEV                       = options[ 'mode' ] is 'dev'
 @$add_stoptimes_gtfs_id = ->
   idx = 0
   return $ ( record, handler ) =>
-    record[ 'gtfs-id' ] = "#{idx}"
+    record[ 'id' ] = KEY.new_id 'gtfs', 'stoptime', "#{idx}"
     idx += 1
     handler null, record
 

@@ -27,7 +27,6 @@
   }
 
   module.exports = options = {
-    'mode': 'dev',
     'parser': {
       'delimiter': ',',
       'skip_empty_lines': true
@@ -53,21 +52,21 @@
           'facet': {
             'secondary': {
               'gtfs/agency/name': true,
-              'gtfs/stops/name': true,
-              'gtfs/routes/name': true
+              'gtfs/stop/name': true,
+              'gtfs/route/name': true
             }
           },
           'link': {
             'secondary': {
-              'gtfs/stop_times/gtfs-stops-id': true,
-              'gtfs/stop_times/gtfs-trips-id': true,
-              'gtfs/trips/gtfs-routes-id': true
+              'gtfs/stoptime/gtfs-stop-id': true,
+              'gtfs/stoptime/gtfs-trip-id': true,
+              'gtfs/trip/gtfs-route-id': true
             }
           }
         },
         'inferred': {
           'link': {
-            'secondary': [['link', '%^|gtfs/stop_times|0|gtfs/trips/', 'gtfs-routes-id']]
+            'secondary': [['%^|gtfs/stoptime|0|gtfs/trip/', 'gtfs-route-id']]
           }
         }
       }

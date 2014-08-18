@@ -382,6 +382,7 @@ options                   = ( require '../options' )[ 'keys' ]
 
 #-----------------------------------------------------------------------------------------------------------
 @split_id = ( id ) ->
+  ### TAINT must unescape ###
   R = id.split slash = options[ 'slash' ]
   throw new Error "expected three parts separated by #{rpr slash}, got #{rpr id}" unless R.length is 3
   throw new Error "realm cannot be empty in #{rpr id}"  unless R[ 0 ].length > 0

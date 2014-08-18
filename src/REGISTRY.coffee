@@ -124,8 +124,9 @@ test_folder_exists = ( route ) ->
       has_primary   = has_index[ 'primary'   ]?[ facet_route ] ? false
       has_secondary = has_index[ 'secondary' ]?[ facet_route ] ? false
       if has_primary or has_secondary
-        idn_1                   = value
-        [ realm_1, type_1, _, ] = name.split '-'
+        ### TAINT inefficiently first splitting, then joining ###
+        id_1                        = value
+        [ realm_1, type_1, idn_1, ] = KEY.split_id id_1
         if has_primary
           key = KEY.new_link           realm, type, idn, realm_1, type_1, idn_1, 0
           entries.push [ key, meta_value, ]
@@ -146,27 +147,63 @@ test_folder_exists = ( route ) ->
 
 #-----------------------------------------------------------------------------------------------------------
 @register_deferred_properties = ( registry, handler ) ->
-  for type, type_index of indexes[ 'inferred' ]
+  ### TAINT simplify ###
+  ### possible to rewrite in terms of a pipe? ###
+  count = 0
+  for entry_type, type_index of indexes[ 'inferred' ]
     for level, level_index of type_index
-      for [ entry_type, source_selector, target_facet_name, ] in level_index
-        debug type, level, source_selector, target_facet_name
+      for [ source_selector, target_facet_name, ] in level_index
         query =
           gte:      source_selector
           lte:      KEY.lte_from_gte source_selector
         registry.createKeyStream query
-          .on 'data', ( source_key ) ->
-            [ target_realm, target_type, target_idn ] = KEY.split_id ( KEY.read source_key )[ 'target' ]
-            target_node_key = KEY.new_node target_realm, target_type, target_idn
-            registry.get target_node_key, ( error, target_node ) ->
+          .on 'data', ( source_key ) =>
+            # [ target_realm, target_type, target_idn ] = KEY.split_id ( KEY.read source_key )[ 'target' ]
+            # target_node_key = KEY.new_node target_realm, target_type, target_idn
+            source_entry    = KEY.read source_key
+            ### TAINT specific to links ###
+            source_node_id  = source_entry[ 'id' ]
+            proxy_node_id   = source_entry[ 'target' ]
+            ### TAINT inefficiently splitting and joining key ###
+            [ source_realm
+              source_type
+              source_idn   ] = KEY.split_id source_node_id
+            ### TAINT inefficiently splitting and joining key ###
+            [ proxy_realm
+              proxy_type
+              proxy_idn   ] = KEY.split_id proxy_node_id
+            proxy_node_key  = KEY.new_node proxy_realm, proxy_type, proxy_idn
+            registry.get proxy_node_key, ( error, proxy_node ) =>
               return handler error if error?
               ### TAINT why is this not done automatically? ###
-              target_node         = JSON.parse target_node
-              target_facet_value  = target_node[ target_facet_name ]
+              proxy_node      = JSON.parse proxy_node
+              target_value    = proxy_node[ target_facet_name ]
               ### TAINT kludge ###
-              info ( target_facet_name.replace /-/g, '/' ) + '/' + target_facet_value
-              unless target_facet_value?
+              unless target_value?
                 return handler new Error "facet #{rpr target_facet_name} not defined in #{rpr target_node}"
-              # KEY.new_secondary_facet
+              # help  rpr source_entry
+              # debug rpr proxy_node
+              # info  target_facet_name, target_value
+              # info  source_realm, source_type, source_idn
+              switch level
+                when 'secondary'
+                  switch entry_type
+                    when 'link'
+                      ### TAINT inefficiently splitting and joining key ###
+                      [ target_realm
+                        target_type
+                        target_idn  ] = KEY.split_id target_value
+                      distance        = source_entry[ 'distance' ] + 1
+                      key             = KEY.new_secondary_link source_realm, source_type, source_idn, \
+                                                               target_realm, target_type, target_idn, distance
+                      registry.put key, '1', ( error ) =>
+                        return handler error if error?
+                        whisper count if count % 1000 is 0
+                        count += 1
+                    else
+                      throw 'XXX'
+                else
+                  throw 'XXX'
               # registry.put
           .on 'error', ( error ) -> return handler error
           .on 'end', -> return handler null

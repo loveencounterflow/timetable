@@ -25,7 +25,7 @@ catch error
 #-----------------------------------------------------------------------------------------------------------
 module.exports = options =
   #.........................................................................................................
-  'mode': 'dev'
+  # 'mode': 'dev'
   #.........................................................................................................
   'parser':
     'delimiter':          ','
@@ -50,13 +50,13 @@ module.exports = options =
         'facet':
           'secondary':
             'gtfs/agency/name':                   true
-            'gtfs/stops/name':                    true
-            'gtfs/routes/name':                   true
+            'gtfs/stop/name':                     true
+            'gtfs/route/name':                    true
         'link':
           'secondary':
-            'gtfs/stop_times/gtfs-stops-id':      true
-            'gtfs/stop_times/gtfs-trips-id':      true
-            'gtfs/trips/gtfs-routes-id':          true
+            'gtfs/stoptime/gtfs-stop-id':         true
+            'gtfs/stoptime/gtfs-trip-id':         true
+            'gtfs/trip/gtfs-route-id':            true
       'inferred':
         'link':
           'secondary': [
@@ -68,7 +68,7 @@ module.exports = options =
             # referred to by stop_times           # property
             # results must end with an ID
             # (a foreign key in SQLish)
-            [ 'link', '%^|gtfs/stop_times|0|gtfs/trips/', 'gtfs-routes-id' ]
+            [ '%^|gtfs/stoptime|0|gtfs/trip/', 'gtfs-route-id' ]
             ]
 
   #.........................................................................................................

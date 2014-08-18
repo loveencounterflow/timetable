@@ -416,9 +416,9 @@ $read_trips_from_route = ( db ) ->
   # @f registry, 'U1', ( error, record ) -> debug record
   # @show_db_sample registry, ratio: 1 / 1, prefix: '%^|gtfs/stop_times|0|gtfs/trips/', handler
   # @show_db_sample registry, ratio: 1 / 1, prefix: '$.|gtfs/trips/9174', handler
-  @test registry, 'parallel', handler
-  @test registry, 'series', handler
-  # @show_db_sample registry, ratio: 1 / 100, handler
+  # @test registry, 'parallel', handler
+  # @test registry, 'series', handler
+  @show_db_sample registry, ratio: 1 / 1, prefix: '%^|gtfs/stoptime|1', handler
   return null
 
 

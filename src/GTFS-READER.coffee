@@ -27,6 +27,7 @@ options                   = require '../options'
 global_data_limit         = options[ 'data' ]?[ 'limit' ] ? Infinity
 datasource_infos          = ( require './get-datasource-infos' )()
 REGISTRY                  = require './REGISTRY'
+KEY                       = require './KEY'
 #...........................................................................................................
 ASYNC                     = require 'async'
 #...........................................................................................................
@@ -47,6 +48,15 @@ DEV                       = options[ 'mode' ] is 'dev'
     return handler new Error "unable to register record without GTFS ID: #{rpr record}"   unless gtfs_id?
     return handler new Error "unable to register record without GTFS type: #{rpr record}" unless gtfs_type?
     record[ 'id' ]  = "gtfs/#{gtfs_type}/#{gtfs_id}"
+    handler null, record
+
+#-----------------------------------------------------------------------------------------------------------
+@$set_id = ( realm, type, name = 'id' ) ->
+  return $ ( record, handler ) =>
+    idn = record[ name  ]
+    return handler new Error "unable to set ID without IDN: #{rpr record}" unless idn?
+    return handler new Error "illegal IDN in field #{rpr name}: #{rpr record}" if '/' in idn
+    record[ name ] = KEY.new_id realm, type, idn
     handler null, record
 
 #-----------------------------------------------------------------------------------------------------------
@@ -143,18 +153,13 @@ DEV                       = options[ 'mode' ] is 'dev'
   #.........................................................................................................
   input.pipe P.$split()
     .pipe P.$skip_empty()
-    # .pipe @$_XXX_save() # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-    # .pipe P.$sample                     1 / 10, headers: true, seed: 5
     .pipe P.$parse_csv()
     .pipe @$clean_agency_record()
     .pipe P.$delete_prefix              'agency_'
-    .pipe P.$set                        'gtfs-type', 'agency'
-    .pipe P.$rename                     'id', 'gtfs-id'
-    .pipe @$set_id_from_gtfs_id()
+    .pipe @$clean_agency_id             'id'
+    .pipe @$set_id                      'gtfs', 'agency'
     .pipe @$clean_agency_record()
     .pipe P.$dasherize_field_names()
-    # .pipe @$index_on_2                    'name' # , 'url'
-    # .pipe REGISTRY.$register            registry
     .pipe REGISTRY.$register_2          registry
     .pipe P.$collect_sample             4, ( _, sample ) -> whisper 'agency', sample
     .pipe P.$on_end                     -> handler null
@@ -166,6 +171,12 @@ DEV                       = options[ 'mode' ] is 'dev'
   return $ ( record, handler ) =>
     delete record[ 'agency_phone' ]
     delete record[ 'agency_lang' ]
+    handler null, record
+
+#-----------------------------------------------------------------------------------------------------------
+@$clean_agency_id = ( name ) ->
+  return $ ( record, handler ) =>
+    record[ name ] = record[ name ].replace /[-_]*$/, ''
     handler null, record
 
 
@@ -183,13 +194,12 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe P.$parse_csv()
     .pipe @$clean_routes_record()
     .pipe P.$dasherize_field_names()
-    .pipe P.$set                        'gtfs-type',       'routes'
-    .pipe P.$rename                     'route-id',         'gtfs-id'
+    .pipe P.$rename                     'route-id',         'id'
     .pipe P.$rename                     'agency-id',        'gtfs-agency-id'
+    .pipe @$clean_agency_id             'gtfs-agency-id'
+    .pipe @$set_id                      'gtfs',             'agency', 'gtfs-agency-id'
     .pipe P.$rename                     'route-short-name', 'name'
-    .pipe @$set_id_from_gtfs_id()
-    # .pipe @$_XXXX_add_id_indexes()
-    # .pipe @$index_on                    'name'
+    .pipe @$set_id                      'gtfs',             'route'
     .pipe REGISTRY.$register_2          registry
     .pipe P.$collect_sample             8, ( _, sample ) -> whisper 'route', sample
     .pipe P.$on_end                     -> handler null
@@ -216,15 +226,16 @@ DEV                       = options[ 'mode' ] is 'dev'
 #-----------------------------------------------------------------------------------------------------------
 @read_calendar_dates = ( registry, route, handler ) ->
   input       = P.create_readstream route, 'calendar_dates'
+  ratio       = if DEV then 1 / 100 else 1
   #.........................................................................................................
   input.pipe P.$split()
     .pipe P.$skip_empty()
     .pipe P.$parse_csv()
-    .pipe P.$sample                     1 / 100, headers: true, seed: 5
+    .pipe P.$sample                     ratio, headers: true, seed: 5
     .pipe @$clean_calendar_date_record()
-    .pipe P.$set                        'gtfs-type', 'calendar_dates'
-    .pipe P.$rename                     'service_id', 'gtfs-id'
-    .pipe @$set_id_from_gtfs_id()
+    # .pipe P.$set                        'gtfs-type', 'calendar_dates'
+    .pipe P.$rename                     'service_id', 'id'
+    .pipe @$set_id                      'gtfs',             'service'
     .pipe REGISTRY.$register_2          registry
     .pipe P.$collect_sample             4, ( _, sample ) -> whisper 'service', sample
     .pipe P.$on_end                     -> handler null
@@ -244,8 +255,7 @@ DEV                       = options[ 'mode' ] is 'dev'
 #-----------------------------------------------------------------------------------------------------------
 @read_trips = ( registry, route, handler ) ->
   input       = P.create_readstream route, 'trips'
-  # ratio       = if DEV then 1 / 10 else 1
-  ratio       = if DEV then 1 else 1 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  ratio       = if DEV then 1 / 10000 else 1
   #.........................................................................................................
   input.pipe P.$split()
     .pipe P.$skip_empty()
@@ -254,13 +264,11 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe @$clean_trip_record()
     .pipe P.$delete_prefix              'trip_'
     .pipe P.$dasherize_field_names()
-    .pipe P.$set                        'gtfs-type',       'trips'
-    # .pipe P.$set                        'gtfs-stoptimes',  null
-    .pipe P.$rename                     'id',               'gtfs-id'
-    .pipe P.$rename                     'route-id',         'gtfs-routes-id'
+    .pipe P.$rename                     'route-id',         'gtfs-route-id'
     .pipe P.$rename                     'service-id',       'gtfs-service-id'
-    .pipe @$set_id_from_gtfs_id()
-    # .pipe @$_XXXX_add_id_indexes()
+    .pipe @$set_id                      'gtfs', 'trip'
+    .pipe @$set_id                      'gtfs', 'route',    'gtfs-route-id'
+    .pipe @$set_id                      'gtfs', 'service',  'gtfs-service-id'
     .pipe REGISTRY.$register_2          registry
     .pipe P.$collect_sample             4, ( _, sample ) -> whisper 'trip', sample
     .pipe P.$on_end                     -> handler null
@@ -347,12 +355,8 @@ DEV                       = options[ 'mode' ] is 'dev'
     .pipe P.$parse_csv()
     .pipe @$clean_stops_record()
     .pipe P.$delete_prefix              'stop_'
-    .pipe P.$set                        'gtfs-type', 'stops'
-    # .pipe P.$copy                       'name', 'gtfs-name'
-    .pipe P.$rename                     'id', 'gtfs-id'
-    .pipe @$set_id_from_gtfs_id()
+    .pipe @$set_id                      'gtfs', 'stop'
     .pipe @$convert_latlon()
-    # .pipe @$index_on                    'name'
     .pipe REGISTRY.$register_2          registry
     .pipe P.$collect_sample             4, ( _, sample ) -> whisper 'stop', sample
     .pipe P.$on_end                     -> handler null
@@ -389,8 +393,8 @@ DEV                       = options[ 'mode' ] is 'dev'
     #.......................................................................................................
     for gtfs_type in options[ 'data' ][ 'gtfs-types' ]
       # if DEV
-      #   # if gtfs_type not in [ 'agency', 'stops', ]  # <<<<<<<<<<
-      #   if gtfs_type not in [ 'stop_times', ]  # <<<<<<<<<<
+      #   if gtfs_type not in [ 'agency', 'stops', 'routes', 'calendar_dates', 'trips', ]  # <<<<<<<<<<
+      #   # if gtfs_type not in [ 'stop_times', ]  # <<<<<<<<<<
       #     warn "skipping #{gtfs_type}"  # <<<<<<<<<<
       #     continue                    # <<<<<<<<<<
       route = route_by_types[ gtfs_type ]
@@ -422,6 +426,7 @@ DEV                       = options[ 'mode' ] is 'dev'
     info "  (#{ok_types.join ', '})"
   #.........................................................................................................
   ASYNC.series tasks, ( error ) =>
+  # ASYNC.parallel tasks, ( error ) =>
     throw error if error?
     t1 = 1 * new Date() # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     urge 'dt:', ( t1 - t0 ) / 1000 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

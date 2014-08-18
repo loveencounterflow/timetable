@@ -15,9 +15,12 @@ urge                      = TRM.get_logger 'urge',      badge
 echo                      = TRM.echo.bind TRM
 rainbow                   = TRM.rainbow.bind TRM
 #...........................................................................................................
+ASYNC                     = require 'async'
+#...........................................................................................................
 # GTFS_READER               = require '../GTFS-READER'
 # READER                    = require '../READER'
 REGISTRY                  = require '../REGISTRY'
+KEY                       = require '../KEY'
 options                   = require '../../options'
 #...........................................................................................................
 P                         = require 'pipedreams'
@@ -385,6 +388,24 @@ $read_trips_from_route = ( db ) ->
 
 
 #-----------------------------------------------------------------------------------------------------------
+@test = ( registry, method_name, handler ) ->
+  prefixes = [
+    '$.|gtfs/'
+    '$.|gtfs/routes'
+    '%^|gtfs/stop_times' ]
+  tasks = []
+  #.........................................................................................................
+  for prefix in prefixes
+    do ( prefix ) =>
+      tasks.push ( handler ) =>
+        registry.createKeyStream gte: prefix, lte: ( KEY.lte_from_gte prefix )
+          .pipe P.$count ( _, count ) -> help "#{method_name} #{prefix}...: #{count} entries"
+          .on 'end', -> handler null, null
+  #.........................................................................................................
+  ASYNC[ method_name ] tasks, ( error ) ->
+    return handler error, null
+
+#-----------------------------------------------------------------------------------------------------------
 @main = ( handler ) ->
   registry = REGISTRY.new_registry()
   # @show_unique_indexes registry, handler
@@ -394,7 +415,9 @@ $read_trips_from_route = ( db ) ->
   # @show_stops_of_route_2 registry, 'U4', handler
   # @f registry, 'U1', ( error, record ) -> debug record
   # @show_db_sample registry, ratio: 1 / 1, prefix: '%^|gtfs/stop_times|0|gtfs/trips/', handler
-  @show_db_sample registry, ratio: 1 / 1, prefix: '$.|gtfs/trips/9174', handler
+  # @show_db_sample registry, ratio: 1 / 1, prefix: '$.|gtfs/trips/9174', handler
+  @test registry, 'parallel', handler
+  @test registry, 'series', handler
   # @show_db_sample registry, ratio: 1 / 100, handler
   return null
 
